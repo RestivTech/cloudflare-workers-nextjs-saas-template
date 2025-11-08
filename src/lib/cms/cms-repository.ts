@@ -1,7 +1,7 @@
-"use server";
+import "server-only";
 
 import { cache } from "react";
-import { eq, and, desc, asc } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 
 import { getDB } from "@/db"
 import { cmsConfig } from "@/../cms.config";

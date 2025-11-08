@@ -1,9 +1,10 @@
-"use server";
+import "server-only";
 
 import {
   type DefineCmsCollection,
   type DefineCmsConfig
 } from "@/lib/cms/cms-models";
+import z from "zod";
 
 const blogCollection = {
   slug: "blog",
@@ -18,3 +19,8 @@ export const cmsConfig = {
     blog: blogCollection,
   },
 } satisfies DefineCmsConfig;
+
+type CollectionsUnion = keyof typeof cmsConfig.collections;
+
+export const collectionSlugs = Object.keys(cmsConfig.collections)
+export const zodCollectionEnum = z.enum(collectionSlugs as [CollectionsUnion, ...CollectionsUnion[]])
