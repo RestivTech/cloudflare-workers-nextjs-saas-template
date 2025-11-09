@@ -65,8 +65,6 @@ TeamInviteEmail.PreviewProps = {
   inviterName: "Jane Doe",
 } as TeamInviteEmailProps;
 
-export default TeamInviteEmail;
-
 const main = {
   backgroundColor: "#f6f9fc",
   fontFamily:

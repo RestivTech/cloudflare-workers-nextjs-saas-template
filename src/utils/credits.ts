@@ -5,7 +5,7 @@ import { userTable, creditTransactionTable, CREDIT_TRANSACTION_TYPE, purchasedIt
 import { updateAllSessionsOfUser, updateKVSession, KVSession } from "./kv-session";
 import { CREDIT_PACKAGES, FREE_MONTHLY_CREDITS, DISABLE_CREDIT_BILLING_SYSTEM } from "@/constants";
 
-export type CreditPackage = typeof CREDIT_PACKAGES[number];
+type CreditPackage = typeof CREDIT_PACKAGES[number];
 
 export function getCreditPackage(packageId: string): CreditPackage | undefined {
   return CREDIT_PACKAGES.find((pkg) => pkg.id === packageId);

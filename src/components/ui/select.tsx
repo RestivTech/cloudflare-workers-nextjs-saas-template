@@ -147,13 +147,18 @@ SelectSeparator.displayName = SelectPrimitive.Separator.displayName
 
 export {
   Select,
+  // eslint-disable-next-line import/no-unused-modules
   SelectGroup,
   SelectValue,
   SelectTrigger,
   SelectContent,
+  // eslint-disable-next-line import/no-unused-modules
   SelectLabel,
   SelectItem,
+  // eslint-disable-next-line import/no-unused-modules
   SelectSeparator,
+  // eslint-disable-next-line import/no-unused-modules
   SelectScrollUpButton,
+  // eslint-disable-next-line import/no-unused-modules
   SelectScrollDownButton,
 }

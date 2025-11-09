@@ -8,7 +8,7 @@ import { getIP } from "./get-IP";
 import { MAX_SESSIONS_PER_USER } from "@/constants";
 const SESSION_PREFIX = "session:";
 
-export function getSessionKey(userId: string, sessionId: string): string {
+function getSessionKey(userId: string, sessionId: string): string {
   return `${SESSION_PREFIX}${userId}:${sessionId}`;
 }
 
@@ -69,7 +69,7 @@ export interface KVSession {
  */
 export const CURRENT_SESSION_VERSION = 4;
 
-export async function getKV() {
+async function getKV() {
   const { env } = getCloudflareContext();
   return env.NEXT_INC_CACHE_KV;
 }

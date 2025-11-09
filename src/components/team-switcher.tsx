@@ -56,7 +56,6 @@ export function TeamSwitcher({
     setSelectedTeam(team.id)
 
     // Call server action to persist
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [_data, error] = await updateSelectedTeam({ selectedTeam: team.id })
 
     if (error) {

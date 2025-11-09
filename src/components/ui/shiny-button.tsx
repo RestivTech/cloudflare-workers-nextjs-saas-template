@@ -33,7 +33,7 @@ interface ShinyButtonProps
   className?: string
 }
 
-export const ShinyButton = React.forwardRef<
+const ShinyButton = React.forwardRef<
   HTMLButtonElement,
   ShinyButtonProps
 >(({ children, className, ...props }, ref) => {
