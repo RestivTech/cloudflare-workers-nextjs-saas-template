@@ -5,8 +5,7 @@ import { requireVerifiedEmail } from "@/utils/auth";
 import { generateSlug } from "@/utils/slugify";
 import { ZSAError } from "zsa";
 import { createId } from "@paralleldrive/cuid2";
-import { eq, and, not, count } from "drizzle-orm";
-import { requireTeamPermission } from "@/utils/team-auth";
+import { eq, and, count } from "drizzle-orm";
 import { updateAllSessionsOfUser } from "@/utils/kv-session";
 import { MAX_TEAMS_CREATED_PER_USER, MAX_TEAMS_JOINED_PER_USER } from "@/constants";
 
@@ -122,136 +121,6 @@ export async function createTeam({
     name,
     slug,
   };
-}
-
-/**
- * Update a team's details
- */
-export async function updateTeam({
-  teamId,
-  data
-}: {
-  teamId: string;
-  data: {
-    name?: string;
-    description?: string;
-    avatarUrl?: string;
-    billingEmail?: string;
-    settings?: string;
-  };
-}) {
-  // Check if user has permission to update team settings
-  await requireTeamPermission(teamId, TEAM_PERMISSIONS.EDIT_TEAM_SETTINGS);
-
-  const db = getDB();
-
-  let updateData: typeof data & { slug?: string } = data;
-
-  // If name is being updated, check if we need to update the slug
-  if (data.name) {
-    const currentTeam = await db.query.teamTable.findFirst({
-      where: eq(teamTable.id, teamId),
-    });
-
-    if (currentTeam && currentTeam.name !== data.name) {
-      // Generate new slug based on the new name
-      let newSlug = generateSlug(data.name);
-      let slugIsUnique = false;
-      let attempts = 0;
-
-      while (!slugIsUnique && attempts < 5) {
-        const existingTeam = await db.query.teamTable.findFirst({
-          where: and(
-            eq(teamTable.slug, newSlug),
-            // Make sure we don't check against our own team
-            not(eq(teamTable.id, teamId))
-          ),
-        });
-
-        if (!existingTeam) {
-          slugIsUnique = true;
-        } else {
-          // Add a random suffix to make the slug unique
-          newSlug = `${generateSlug(data.name)}-${createId().substring(0, 4)}`;
-          attempts++;
-        }
-      }
-
-      if (!slugIsUnique) {
-        throw new ZSAError("ERROR", "Could not generate a unique slug for the team");
-      }
-
-      // Add slug to update data
-      updateData = { ...data, slug: newSlug };
-    }
-  }
-
-  // Update team
-  await db.update(teamTable)
-    .set(updateData)
-    .where(eq(teamTable.id, teamId));
-
-  // Update sessions for all team members
-  const members = await db.query.teamMembershipTable.findMany({
-    where: eq(teamMembershipTable.teamId, teamId),
-  });
-
-  for (const member of members) {
-    await updateAllSessionsOfUser(member.userId);
-  }
-
-  return updateData;
-}
-
-/**
- * Delete a team
- */
-export async function deleteTeam(teamId: string) {
-  // Check if user has permission to delete team
-  await requireTeamPermission(teamId, TEAM_PERMISSIONS.DELETE_TEAM);
-
-  const db = getDB();
-
-  // Get all user IDs from the team memberships to update their sessions later
-  const memberships = await db.query.teamMembershipTable.findMany({
-    where: eq(teamMembershipTable.teamId, teamId),
-    columns: {
-      userId: true,
-    },
-  });
-
-  const userIds = [...new Set(memberships.map(m => m.userId))];
-
-  // Delete team and related data
-  // Note: In a real implementation, we might want to archive the team instead of deleting it
-  await db.delete(teamTable).where(eq(teamTable.id, teamId));
-
-  // Update sessions for all affected users
-  for (const userId of userIds) {
-    await updateAllSessionsOfUser(userId);
-  }
-
-  return { success: true };
-}
-
-/**
- * Get a team by ID
- */
-export async function getTeam(teamId: string) {
-  // Check if user is a member of this team
-  await requireTeamPermission(teamId, TEAM_PERMISSIONS.ACCESS_DASHBOARD);
-
-  const db = getDB();
-
-  const team = await db.query.teamTable.findFirst({
-    where: eq(teamTable.id, teamId),
-  });
-
-  if (!team) {
-    throw new ZSAError("NOT_FOUND", "Team not found");
-  }
-
-  return team;
 }
 
 /**

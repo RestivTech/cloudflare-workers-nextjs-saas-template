@@ -54,8 +54,6 @@ ResetPasswordEmail.PreviewProps = {
   username: "johndoe",
 } as ResetPasswordEmailProps;
 
-export default ResetPasswordEmail;
-
 const main = {
   backgroundColor: "#f6f9fc",
   fontFamily:

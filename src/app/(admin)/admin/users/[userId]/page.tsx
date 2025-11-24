@@ -32,7 +32,7 @@ export async function generateMetadata({ params }: UserDetailPageProps): Promise
   const { userId } = await params
 
   try {
-    const data = await getUserData({ input: { userId } })
+    const data = await getUserData(userId)
     if (!data) {
       throw new Error("User not found")
     }
@@ -55,7 +55,7 @@ export default async function UserDetailPage({ params }: UserDetailPageProps) {
 
   let data
   try {
-    data = await getUserData({ input: { userId } })
+    data = await getUserData(userId)
   } catch {
     notFound()
   }

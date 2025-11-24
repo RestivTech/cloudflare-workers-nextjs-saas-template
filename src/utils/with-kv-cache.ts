@@ -42,7 +42,7 @@ export async function withKVCache<T>(
   return result;
 }
 
-export const STATS_PREFIX = "stats";
+const STATS_PREFIX = "stats";
 
 export const CACHE_KEYS = {
   TOTAL_USERS: `${STATS_PREFIX}:total-users`,
