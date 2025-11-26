@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { cmsConfig } from "@/../cms.config";
-import { FileText } from "lucide-react";
+import { FileText, Tag } from "lucide-react";
 
 export default async function CmsPage() {
   const session = await requireAdmin({ doNotThrowError: true });
@@ -64,6 +64,31 @@ export default async function CmsPage() {
             </p>
           </div>
         )}
+
+        <Card className="hover:shadow-lg transition-shadow">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-primary/10 rounded-lg">
+                  <Tag className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <CardTitle>Tags</CardTitle>
+                  <CardDescription className="mt-1">
+                    Manage content tags
+                  </CardDescription>
+                </div>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-2">
+              <Button asChild className="flex-1">
+                <Link href="/admin/cms/tags">Manage Tags</Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

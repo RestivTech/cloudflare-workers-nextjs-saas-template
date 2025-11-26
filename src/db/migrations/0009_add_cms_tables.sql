@@ -7,8 +7,8 @@ CREATE TABLE `cms_entry_media` (
 	`mediaId` text NOT NULL,
 	`position` integer,
 	`caption` text,
-	FOREIGN KEY (`entryId`) REFERENCES `cms_entry`(`id`) ON UPDATE no action ON DELETE no action,
-	FOREIGN KEY (`mediaId`) REFERENCES `cms_media`(`id`) ON UPDATE no action ON DELETE no action
+	FOREIGN KEY (`entryId`) REFERENCES `cms_entry`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`mediaId`) REFERENCES `cms_media`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
 CREATE INDEX `cms_entry_media_entry_id_idx` ON `cms_entry_media` (`entryId`);--> statement-breakpoint
@@ -37,7 +37,22 @@ CREATE INDEX `cms_entry_created_by_idx` ON `cms_entry` (`createdBy`);--> stateme
 CREATE INDEX `cms_entry_created_by_status_idx` ON `cms_entry` (`createdBy`,`status`);--> statement-breakpoint
 CREATE INDEX `cms_entry_created_at_idx` ON `cms_entry` (`createdAt`);--> statement-breakpoint
 CREATE INDEX `cms_entry_collection_status_created_at_idx` ON `cms_entry` (`collection`,`status`,`createdAt`);--> statement-breakpoint
+CREATE INDEX `cms_entry_collection_created_at_idx` ON `cms_entry` (`collection`,`createdAt`);--> statement-breakpoint
 CREATE UNIQUE INDEX `cms_entry_collection_slug_unique` ON `cms_entry` (`collection`,`slug`);--> statement-breakpoint
+CREATE TABLE `cms_entry_tag` (
+	`createdAt` integer NOT NULL,
+	`updatedAt` integer NOT NULL,
+	`updateCounter` integer DEFAULT 0,
+	`id` text PRIMARY KEY NOT NULL,
+	`entryId` text NOT NULL,
+	`tagId` text NOT NULL,
+	FOREIGN KEY (`entryId`) REFERENCES `cms_entry`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`tagId`) REFERENCES `cms_tag`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `cms_entry_tag_entry_id_idx` ON `cms_entry_tag` (`entryId`);--> statement-breakpoint
+CREATE INDEX `cms_entry_tag_tag_id_idx` ON `cms_entry_tag` (`tagId`);--> statement-breakpoint
+CREATE UNIQUE INDEX `cms_entry_tag_unique` ON `cms_entry_tag` (`entryId`,`tagId`);--> statement-breakpoint
 CREATE TABLE `cms_media` (
 	`createdAt` integer NOT NULL,
 	`updatedAt` integer NOT NULL,
@@ -57,5 +72,19 @@ CREATE TABLE `cms_media` (
 CREATE UNIQUE INDEX `cms_media_bucketKey_unique` ON `cms_media` (`bucketKey`);--> statement-breakpoint
 CREATE INDEX `cms_media_mime_type_idx` ON `cms_media` (`mimeType`);--> statement-breakpoint
 CREATE INDEX `cms_media_created_at_idx` ON `cms_media` (`createdAt`);--> statement-breakpoint
-CREATE INDEX `cms_media_bucket_key_idx` ON `cms_media` (`bucketKey`);--> statement-breakpoint
-CREATE INDEX `cms_media_uploaded_by_idx` ON `cms_media` (`uploadedBy`);
+CREATE INDEX `cms_media_uploaded_by_idx` ON `cms_media` (`uploadedBy`);--> statement-breakpoint
+CREATE TABLE `cms_tag` (
+	`createdAt` integer NOT NULL,
+	`updatedAt` integer NOT NULL,
+	`updateCounter` integer DEFAULT 0,
+	`id` text PRIMARY KEY NOT NULL,
+	`name` text NOT NULL,
+	`slug` text NOT NULL,
+	`description` text,
+	`color` text,
+	`createdBy` text NOT NULL,
+	FOREIGN KEY (`createdBy`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE no action
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `cms_tag_name_unique` ON `cms_tag` (`name`);--> statement-breakpoint
+CREATE UNIQUE INDEX `cms_tag_slug_unique` ON `cms_tag` (`slug`);

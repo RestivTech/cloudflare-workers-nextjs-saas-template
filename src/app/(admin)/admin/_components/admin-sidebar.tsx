@@ -21,15 +21,13 @@ import {
   SidebarGroup,
 } from "@/components/ui/sidebar"
 
-// eslint-disable-next-line import/no-unused-modules
-export type NavItem = {
+type NavItem = {
   title: string
   url: Route
   icon?: ComponentType
 }
 
-// eslint-disable-next-line import/no-unused-modules
-export type NavMainItem = NavItem & {
+type NavMainItem = NavItem & {
   isActive?: boolean
   items?: NavItem[]
 }

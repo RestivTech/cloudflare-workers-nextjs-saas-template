@@ -35,6 +35,7 @@ export const listCmsEntriesAction = createServerAction()
       offset: input.offset,
       includeRelations: {
         createdByUser: true,
+        tags: true,
       },
     });
 
@@ -76,6 +77,7 @@ export const createCmsEntryAction = createServerAction()
       content: z.any(), // TipTap JSON content
       fields: z.record(z.any()),
       status: z.enum(["draft", "published", "archived"]).default("draft"),
+      tagIds: z.array(z.string()).optional(),
     })
   )
   .handler(async ({ input }) => {
@@ -93,6 +95,7 @@ export const createCmsEntryAction = createServerAction()
       fields: input.fields,
       status: input.status as typeof CMS_ENTRY_STATUS[keyof typeof CMS_ENTRY_STATUS],
       createdBy: session.userId,
+      tagIds: input.tagIds,
     });
 
     return newEntry;
@@ -110,6 +113,7 @@ export const updateCmsEntryAction = createServerAction()
       content: z.any().optional(), // TipTap JSON content
       fields: z.record(z.any()).optional(),
       status: z.enum(["draft", "published", "archived"]).optional(),
+      tagIds: z.array(z.string()).optional(),
     })
   )
   .handler(async ({ input }) => {
@@ -122,6 +126,7 @@ export const updateCmsEntryAction = createServerAction()
       content: input.content,
       fields: input.fields,
       status: input.status as typeof CMS_ENTRY_STATUS[keyof typeof CMS_ENTRY_STATUS] | undefined,
+      tagIds: input.tagIds,
     });
 
     if (!updatedEntry) {

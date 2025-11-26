@@ -298,8 +298,6 @@ export const cmsMediaTable = sqliteTable("cms_media", {
   index('cms_media_mime_type_idx').on(table.mimeType),
   // Index for sorting by creation date (most recent uploads)
   index('cms_media_created_at_idx').on(table.createdAt),
-  // Index for bucket key lookups
-  index('cms_media_bucket_key_idx').on(table.bucketKey),
   // Index for finding all media uploaded by a user
   index('cms_media_uploaded_by_idx').on(table.uploadedBy),
 ]));
@@ -351,14 +349,17 @@ export const cmsEntryTable = sqliteTable("cms_entry", {
 
   // Composite index for collection + status + created date (optimized listing with filters and sorting)
   index('cms_entry_collection_status_created_at_idx').on(table.collection, table.status, table.createdAt),
+
+  // Composite index for collection + created date (optimized listing for admin dashboard)
+  index('cms_entry_collection_created_at_idx').on(table.collection, table.createdAt),
 ]));
 
 // Junction table for many-to-many relationship between entries and media
 export const cmsEntryMediaTable = sqliteTable("cms_entry_media", {
   ...commonColumns,
   id: text().primaryKey().$defaultFn(() => `cms_em_${createId()}`).notNull(),
-  entryId: text().notNull().references(() => cmsEntryTable.id),
-  mediaId: text().notNull().references(() => cmsMediaTable.id),
+  entryId: text().notNull().references(() => cmsEntryTable.id, { onDelete: 'cascade' }),
+  mediaId: text().notNull().references(() => cmsMediaTable.id, { onDelete: 'cascade' }),
   // Optional: track the order/position of media within an entry
   position: integer(),
   // Optional: caption or description specific to this usage
@@ -370,6 +371,28 @@ export const cmsEntryMediaTable = sqliteTable("cms_entry_media", {
   index('cms_entry_media_media_id_idx').on(table.mediaId),
   // Unique constraint to prevent the same media from being attached to the same entry multiple times
   unique('cms_entry_media_entry_media_unique').on(table.entryId, table.mediaId),
+]));
+
+export const cmsTagTable = sqliteTable("cms_tag", {
+  ...commonColumns,
+  id: text().primaryKey().$defaultFn(() => `ctag_${createId()}`).notNull(),
+  name: text().notNull().unique(),
+  slug: text().notNull().unique(),
+  description: text(),
+  color: text(),
+  createdBy: text().notNull().references(() => userTable.id),
+});
+
+// Junction table for many-to-many relationship between entries and tags
+export const cmsEntryTagTable = sqliteTable("cms_entry_tag", {
+  ...commonColumns,
+  id: text().primaryKey().$defaultFn(() => `cet_${createId()}`).notNull(),
+  entryId: text().notNull().references(() => cmsEntryTable.id, { onDelete: 'cascade' }),
+  tagId: text().notNull().references(() => cmsTagTable.id, { onDelete: 'cascade' }),
+}, (table) => ([
+  index('cms_entry_tag_entry_id_idx').on(table.entryId),
+  index('cms_entry_tag_tag_id_idx').on(table.tagId),
+  unique('cms_entry_tag_unique').on(table.entryId, table.tagId),
 ]));
 
 export const cmsMediaRelations = relations(cmsMediaTable, ({ many, one }) => ({
@@ -391,12 +414,32 @@ export const cmsEntryMediaRelations = relations(cmsEntryMediaTable, ({ one }) =>
   }),
 }));
 
+export const cmsTagRelations = relations(cmsTagTable, ({ many, one }) => ({
+  entries: many(cmsEntryTagTable),
+  createdByUser: one(userTable, {
+    fields: [cmsTagTable.createdBy],
+    references: [userTable.id],
+  }),
+}));
+
+export const cmsEntryTagRelations = relations(cmsEntryTagTable, ({ one }) => ({
+  entry: one(cmsEntryTable, {
+    fields: [cmsEntryTagTable.entryId],
+    references: [cmsEntryTable.id],
+  }),
+  tag: one(cmsTagTable, {
+    fields: [cmsEntryTagTable.tagId],
+    references: [cmsTagTable.id],
+  }),
+}));
+
 export const cmsEntryRelations = relations(cmsEntryTable, ({ one, many }) => ({
   createdByUser: one(userTable, {
     fields: [cmsEntryTable.createdBy],
     references: [userTable.id],
   }),
   entryMedia: many(cmsEntryMediaTable),
+  tags: many(cmsEntryTagTable),
 }));
 
 export const teamRelations = relations(teamTable, ({ many }) => ({
@@ -463,6 +506,7 @@ export const userRelations = relations(userTable, ({ many }) => ({
   teamMemberships: many(teamMembershipTable),
   cmsEntries: many(cmsEntryTable),
   cmsMedia: many(cmsMediaTable),
+  cmsTags: many(cmsTagTable),
 }));
 
 export const passKeyCredentialRelations = relations(passKeyCredentialTable, ({ one }) => ({
@@ -483,3 +527,5 @@ export type TeamInvitation = InferSelectModel<typeof teamInvitationTable>;
 export type CmsEntry = InferSelectModel<typeof cmsEntryTable>;
 export type CmsMedia = InferSelectModel<typeof cmsMediaTable>;
 export type CmsEntryMedia = InferSelectModel<typeof cmsEntryMediaTable>;
+export type CmsTag = InferSelectModel<typeof cmsTagTable>;
+export type CmsEntryTag = InferSelectModel<typeof cmsEntryTagTable>;

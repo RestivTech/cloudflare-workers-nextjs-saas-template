@@ -5,7 +5,7 @@ import { eq, and, desc } from "drizzle-orm";
 
 import { getDB } from "@/db"
 import { cmsConfig } from "@/../cms.config";
-import { cmsEntryTable, cmsEntryMediaTable, CMS_ENTRY_STATUS, type CmsEntry } from "@/db/schema";
+import { cmsEntryTable, cmsEntryMediaTable, cmsTagTable, cmsEntryTagTable, CMS_ENTRY_STATUS, type CmsEntry, type CmsTag } from "@/db/schema";
 
 // TODO Implement KV cache for CMS entries
 // TODO Automatically add cms entries to the sitemap and also add the option to hide certain entries from the sitemap
@@ -25,6 +25,10 @@ export type CmsIncludeRelations = {
    * Include associated media files
    */
   media?: boolean;
+  /**
+   * Include associated tags
+   */
+  tags?: boolean;
 };
 
 /**
@@ -52,6 +56,14 @@ function buildCmsRelationsQuery(includeRelations?: CmsIncludeRelations) {
       orderBy: (fields: any, { asc }: any) => [asc(fields.position)],
       with: {
         media: true,
+      },
+    };
+  }
+
+  if (includeRelations?.tags) {
+    relations.tags = {
+      with: {
+        tag: true,
       },
     };
   }
@@ -102,6 +114,9 @@ export type GetCmsCollectionResult = CmsEntry & {
       height: number | null;
       alt: string | null;
     };
+  }>;
+  tags?: Array<{
+    tag: CmsTag;
   }>;
 };
 
@@ -262,6 +277,7 @@ type CreateCmsEntryParams<T extends keyof typeof cmsConfig.collections> = {
   fields: unknown;
   status?: typeof CMS_ENTRY_STATUS[keyof typeof CMS_ENTRY_STATUS];
   createdBy: string;
+  tagIds?: string[];
 };
 
 /**
@@ -287,6 +303,7 @@ export async function createCmsEntry<T extends keyof typeof cmsConfig.collection
   fields,
   status = CMS_ENTRY_STATUS.DRAFT,
   createdBy,
+  tagIds,
 }: CreateCmsEntryParams<T>): Promise<CmsEntry> {
   const db = getDB();
 
@@ -319,6 +336,16 @@ export async function createCmsEntry<T extends keyof typeof cmsConfig.collection
     createdBy,
   }).returning();
 
+  // Handle tags if provided
+  if (tagIds && tagIds.length > 0) {
+    await db.insert(cmsEntryTagTable).values(
+      tagIds.map(tagId => ({
+        entryId: newEntry.id,
+        tagId,
+      }))
+    );
+  }
+
   return newEntry;
 }
 
@@ -335,6 +362,7 @@ type UpdateCmsEntryParams = {
    */
   fields?: unknown;
   status?: typeof CMS_ENTRY_STATUS[keyof typeof CMS_ENTRY_STATUS];
+  tagIds?: string[];
 };
 
 /**
@@ -357,6 +385,7 @@ export async function updateCmsEntry({
   content,
   fields,
   status,
+  tagIds,
 }: UpdateCmsEntryParams): Promise<CmsEntry | null> {
   const db = getDB();
 
@@ -396,6 +425,22 @@ export async function updateCmsEntry({
     .where(eq(cmsEntryTable.id, id))
     .returning();
 
+  // Handle tags if provided
+  if (tagIds) {
+    // First remove all existing tags for this entry
+    await db.delete(cmsEntryTagTable).where(eq(cmsEntryTagTable.entryId, id));
+
+    // Then add the new ones if any
+    if (tagIds.length > 0) {
+      await db.insert(cmsEntryTagTable).values(
+        tagIds.map(tagId => ({
+          entryId: id,
+          tagId,
+        }))
+      );
+    }
+  }
+
   return updatedEntry || null;
 }
 
@@ -431,4 +476,110 @@ export async function deleteCmsEntry({
 
   // Delete the entry
   await db.delete(cmsEntryTable).where(eq(cmsEntryTable.id, id));
+}
+
+// Tag Management Functions
+
+export const getCmsTags = cache(async () => {
+  const db = getDB();
+  return await db.select().from(cmsTagTable).orderBy(desc(cmsTagTable.createdAt));
+});
+
+export const getCmsTagById = cache(async (id: string) => {
+  const db = getDB();
+  return await db.query.cmsTagTable.findFirst({
+    where: eq(cmsTagTable.id, id),
+  });
+});
+
+export async function createCmsTag({
+  name,
+  slug,
+  description,
+  color,
+  createdBy,
+}: {
+  name: string;
+  slug: string;
+  description?: string;
+  color?: string;
+  createdBy: string;
+}) {
+  const db = getDB();
+
+  // Check if tag with same slug exists
+  const existingTag = await db.query.cmsTagTable.findFirst({
+    where: eq(cmsTagTable.slug, slug),
+  });
+
+  if (existingTag) {
+    throw new Error(`Tag with slug "${slug}" already exists`);
+  }
+
+  const [newTag] = await db.insert(cmsTagTable).values({
+    name,
+    slug,
+    description,
+    color,
+    createdBy,
+  }).returning();
+
+  return newTag;
+}
+
+export async function updateCmsTag({
+  id,
+  name,
+  slug,
+  description,
+  color,
+}: {
+  id: string;
+  name?: string;
+  slug?: string;
+  description?: string;
+  color?: string;
+}) {
+  const db = getDB();
+
+  // Check if tag exists
+  const existingTag = await db.query.cmsTagTable.findFirst({
+    where: eq(cmsTagTable.id, id),
+  });
+
+  if (!existingTag) {
+    throw new Error(`Tag with id "${id}" not found`);
+  }
+
+  // If slug is being changed, check for conflicts
+  if (slug && slug !== existingTag.slug) {
+    const conflictingTag = await db.query.cmsTagTable.findFirst({
+      where: eq(cmsTagTable.slug, slug),
+    });
+
+    if (conflictingTag) {
+      throw new Error(`Tag with slug "${slug}" already exists`);
+    }
+  }
+
+  const [updatedTag] = await db
+    .update(cmsTagTable)
+    .set({
+      name,
+      slug,
+      description,
+      color,
+    })
+    .where(eq(cmsTagTable.id, id))
+    .returning();
+
+  return updatedTag;
+}
+
+export async function deleteCmsTag(id: string) {
+  const db = getDB();
+
+  // Delete associations first (cascade should handle this but good to be explicit or if cascade not set up)
+  // Our schema has onDelete: 'cascade' so we can just delete the tag
+  await db.delete(cmsTagTable).where(eq(cmsTagTable.id, id));
 }

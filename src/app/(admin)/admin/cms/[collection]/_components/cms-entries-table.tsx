@@ -96,6 +96,7 @@ export function CmsEntriesTable({ collection }: { collection: string }) {
               <TableHead>Title</TableHead>
               <TableHead>Slug</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Tags</TableHead>
               <TableHead>Author</TableHead>
               <TableHead>Updated</TableHead>
               <TableHead className="text-right">Actions</TableHead>
@@ -104,7 +105,7 @@ export function CmsEntriesTable({ collection }: { collection: string }) {
           <TableBody>
             {isPending ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8">
+                <TableCell colSpan={7} className="text-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin mx-auto" />
                 </TableCell>
               </TableRow>
@@ -117,6 +118,32 @@ export function CmsEntriesTable({ collection }: { collection: string }) {
                     <Badge variant={getStatusBadgeVariant(entry.status)}>
                       {entry.status}
                     </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1">
+                      {entry.tags && entry.tags.length > 0 ? (
+                        entry.tags.slice(0, 3).map((entryTag) => (
+                          <Badge
+                            key={entryTag.tag.id}
+                            variant="outline"
+                            className="text-xs"
+                            style={{
+                              backgroundColor: entryTag.tag.color ? `${entryTag.tag.color}20` : undefined,
+                              borderColor: entryTag.tag.color || undefined,
+                            }}
+                          >
+                            {entryTag.tag.name}
+                          </Badge>
+                        ))
+                      ) : (
+                        <span className="text-muted-foreground text-sm">—</span>
+                      )}
+                      {entry.tags && entry.tags.length > 3 && (
+                        <Badge variant="outline" className="text-xs">
+                          +{entry.tags.length - 3}
+                        </Badge>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell>
                     {entry.createdByUser
@@ -149,7 +176,7 @@ export function CmsEntriesTable({ collection }: { collection: string }) {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                   No entries found. Create your first one!
                 </TableCell>
               </TableRow>

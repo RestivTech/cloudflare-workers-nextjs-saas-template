@@ -21,13 +21,19 @@ export default async function EditEntryPage({
   const { collection, entryId } = await params;
 
   // Validate collection exists
-  const collectionConfig = cmsConfig.collections[collection];
+  const collectionConfig = cmsConfig.collections[collection as keyof typeof cmsConfig.collections];
+
   if (!collectionConfig) {
     return redirect("/admin/cms");
   }
 
   // Get the entry
-  const entry = await getCmsEntryById({ id: entryId });
+  const entry = await getCmsEntryById({
+    id: entryId,
+    includeRelations: {
+      tags: true,
+    }
+  });
   if (!entry) {
     return redirect(`/admin/cms/${collection}`);
   }
