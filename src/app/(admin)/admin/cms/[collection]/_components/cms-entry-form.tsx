@@ -5,6 +5,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useServerAction } from "zsa-react";
+import { formatDistanceToNow } from "date-fns";
 import { createCmsEntryAction, updateCmsEntryAction } from "../../../_actions/cms-entry-actions";
 import { listCmsTagsAction, createCmsTagAction } from "../../../_actions/cms-tag-actions";
 import { Button } from "@/components/ui/button";
@@ -36,9 +37,13 @@ type CmsEntryFormProps = {
 export function CmsEntryForm({ collection, mode, entry }: CmsEntryFormProps) {
   const router = useRouter();
   const multiSelectRef = useRef<MultiSelectRef>(null);
+  // TODO Use react-hook-form with zod validations from the server actions
   const [title, setTitle] = useState(entry?.title || "");
   const [slug, setSlug] = useState(entry?.slug || "");
+  const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(false);
   const [content, setContent] = useState<unknown>(entry?.content || { type: "doc", content: [] });
+  // TODO Get this enum from the drizzle schema
+  // TODO Add pagination
   const [status, setStatus] = useState<"draft" | "published" | "archived">(
     (entry?.status as "draft" | "published" | "archived") || "draft"
   );
@@ -80,12 +85,19 @@ export function CmsEntryForm({ collection, mode, entry }: CmsEntryFormProps) {
   // Auto-generate slug from title
   const handleTitleChange = (value: string) => {
     setTitle(value);
-    if (mode === "create" && !slug) {
-      const generatedSlug = value
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-|-$/g, "");
+    // Only auto-generate slug in create mode and if user hasn't manually edited it
+    if (mode === "create" && !isSlugManuallyEdited) {
+      const generatedSlug = generateSlug(value);
       setSlug(generatedSlug);
+    }
+  };
+
+  // Handle manual slug changes
+  const handleSlugChange = (value: string) => {
+    setSlug(value);
+    // Mark as manually edited if user types anything
+    if (!isSlugManuallyEdited) {
+      setIsSlugManuallyEdited(true);
     }
   };
 
@@ -239,113 +251,213 @@ export function CmsEntryForm({ collection, mode, entry }: CmsEntryFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Basic Information</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="title">Title *</Label>
-            <Input
-              id="title"
-              value={title}
-              onChange={(e) => handleTitleChange(e.target.value)}
-              placeholder="Enter title..."
-              required
-            />
-          </div>
+      {/* Header with Title and Action Buttons */}
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex-1 min-w-0">
+          <h2 className="text-2xl font-semibold tracking-tight">
+            {mode === "create" ? "Create New Entry" : "Edit Entry"}
+          </h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            {mode === "create"
+              ? "Fill in the details below to create a new entry"
+              : "Update the entry details below"}
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => router.push(`/admin/cms/${collection}`)}
+            disabled={isPending}
+          >
+            Cancel
+          </Button>
+          <Button type="submit" disabled={isPending}>
+            {isPending ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                {mode === "create" ? "Creating..." : "Saving..."}
+              </>
+            ) : (
+              <>
+                <Save className="h-4 w-4 mr-2" />
+                {mode === "create" ? "Create Entry" : "Save Changes"}
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="slug">Slug *</Label>
-            <Input
-              id="slug"
-              value={slug}
-              onChange={(e) => setSlug(e.target.value)}
-              placeholder="url-friendly-slug"
-              required
-            />
-            <p className="text-xs text-muted-foreground">
-              URL-friendly version of the title
-            </p>
-          </div>
+      {/* Main Content Area */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Column - Main Content (2/3 width on large screens) */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Title and Slug Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Basic Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="title">Title *</Label>
+                <Input
+                  id="title"
+                  value={title}
+                  onChange={(e) => handleTitleChange(e.target.value)}
+                  placeholder="Enter a compelling title..."
+                  required
+                  className="text-lg"
+                />
+              </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="status">Status</Label>
-            <Select value={status} onValueChange={(value) => setStatus(value as typeof status)}>
-              <SelectTrigger id="status">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="draft">Draft</SelectItem>
-                <SelectItem value="published">Published</SelectItem>
-                <SelectItem value="archived">Archived</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+              <div className="space-y-2">
+                <Label htmlFor="slug">URL Slug *</Label>
+                <Input
+                  id="slug"
+                  value={slug}
+                  onChange={(e) => handleSlugChange(e.target.value)}
+                  placeholder="url-friendly-slug"
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  This will be used in the URL. Auto-generated from title, but you can customize it.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
 
-          <div className="space-y-2">
-            <Label htmlFor="tags">Tags</Label>
-            <MultiSelect
-              ref={multiSelectRef}
-              options={tagOptions}
-              onValueChange={setSelectedTagIds}
-              defaultValue={selectedTagIds}
-              placeholder="Select tags..."
-              variant="default"
-              maxCount={5}
-              disabled={isLoadingTags || isCreatingTag}
-              className="w-full"
-              searchable={true}
-              onSearchChange={setSearchValue}
-              emptyIndicator={emptyIndicator}
-              resetOnDefaultValueChange={true}
-            />
-            <p className="text-xs text-muted-foreground">
-              Select tags to categorize this entry. Type to search or create new tags.{" "}
-              <a
-                href="/admin/cms/tags"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline hover:text-foreground"
-              >
-                Manage tags
-              </a>
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+          {/* Content Editor Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Content</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <TipTapEditor content={content} onChange={(newContent) => setContent(newContent)} />
+            </CardContent>
+          </Card>
+        </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Content</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <TipTapEditor content={content} onChange={(newContent) => setContent(newContent)} />
-        </CardContent>
-      </Card>
+        {/* Right Column - Sidebar (1/3 width on large screens) */}
+        <div className="space-y-6">
+          {/* Publishing Options Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Publishing</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="status">Status</Label>
+                <Select value={status} onValueChange={(value) => setStatus(value as typeof status)}>
+                  <SelectTrigger id="status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="draft">
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 w-2 rounded-full bg-gray-500" />
+                        <span>Draft</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="published">
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 w-2 rounded-full bg-green-500" />
+                        <span>Published</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="archived">
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 w-2 rounded-full bg-orange-500" />
+                        <span>Archived</span>
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Control the visibility of this entry
+                </p>
+              </div>
+            </CardContent>
+          </Card>
 
-      <div className="flex items-center gap-4">
-        <Button type="submit" disabled={isPending}>
-          {isPending ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              {mode === "create" ? "Creating..." : "Updating..."}
-            </>
-          ) : (
-            <>
-              <Save className="h-4 w-4 mr-2" />
-              {mode === "create" ? "Create Entry" : "Update Entry"}
-            </>
+          {/* Tags Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Tags</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="tags">Select Tags</Label>
+                <MultiSelect
+                  ref={multiSelectRef}
+                  options={tagOptions}
+                  onValueChange={setSelectedTagIds}
+                  defaultValue={selectedTagIds}
+                  placeholder="Select tags..."
+                  variant="default"
+                  maxCount={3}
+                  disabled={isLoadingTags || isCreatingTag}
+                  className="w-full"
+                  searchable={true}
+                  onSearchChange={setSearchValue}
+                  emptyIndicator={emptyIndicator}
+                  resetOnDefaultValueChange={true}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Type to search or create new tags.{" "}
+                  <a
+                    href="/admin/cms/tags"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline hover:text-foreground"
+                  >
+                    Manage tags
+                  </a>
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Quick Info Card */}
+          {mode === "edit" && entry && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Entry Information</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <div>
+                  <span className="text-muted-foreground">Created:</span>
+                  <p className="font-medium">
+                    {formatDistanceToNow(new Date(entry.createdAt), { addSuffix: true })}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {new Date(entry.createdAt).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Last Updated:</span>
+                  <p className="font-medium">
+                    {formatDistanceToNow(new Date(entry.updatedAt), { addSuffix: true })}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {new Date(entry.updatedAt).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
           )}
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => router.push(`/admin/cms/${collection}`)}
-          disabled={isPending}
-        >
-          Cancel
-        </Button>
+        </div>
       </div>
     </form>
   );

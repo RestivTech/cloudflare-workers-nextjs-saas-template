@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { generateSlug } from "@/utils/slugify";
 import type { CmsTag } from "@/db/schema";
 import {
   AlertDialog,
@@ -33,6 +34,7 @@ export function TagForm({ mode, tag }: TagFormProps) {
   const router = useRouter();
   const [name, setName] = useState(tag?.name || "");
   const [slug, setSlug] = useState(tag?.slug || "");
+  const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(false);
   const [description, setDescription] = useState(tag?.description || "");
   const [color, setColor] = useState(tag?.color || "#000000");
 
@@ -45,12 +47,19 @@ export function TagForm({ mode, tag }: TagFormProps) {
   // Auto-generate slug from name
   const handleNameChange = (value: string) => {
     setName(value);
-    if (mode === "create" && !slug) {
-      const generatedSlug = value
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-|-$/g, "");
+    // Only auto-generate slug in create mode and if user hasn't manually edited it
+    if (mode === "create" && !isSlugManuallyEdited) {
+      const generatedSlug = generateSlug(value);
       setSlug(generatedSlug);
+    }
+  };
+
+  // Handle manual slug changes
+  const handleSlugChange = (value: string) => {
+    setSlug(value);
+    // Mark as manually edited if user types anything
+    if (!isSlugManuallyEdited) {
+      setIsSlugManuallyEdited(true);
     }
   };
 
@@ -141,12 +150,12 @@ export function TagForm({ mode, tag }: TagFormProps) {
             <Input
               id="slug"
               value={slug}
-              onChange={(e) => setSlug(e.target.value)}
+              onChange={(e) => handleSlugChange(e.target.value)}
               placeholder="e.g. technology"
               required
             />
             <p className="text-xs text-muted-foreground">
-              URL-friendly version of the name
+              Auto-generated from name, but you can customize it
             </p>
           </div>
 

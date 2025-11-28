@@ -9,6 +9,7 @@ import { cmsEntryTable, cmsEntryMediaTable, cmsTagTable, cmsEntryTagTable, CMS_E
 
 // TODO Implement KV cache for CMS entries
 // TODO Automatically add cms entries to the sitemap and also add the option to hide certain entries from the sitemap
+// TODO Explain how to use the CMS in the README.md file
 
 // Extend CMS_ENTRY_STATUS with 'all' option for queries
 export type CmsEntryStatus = typeof CMS_ENTRY_STATUS[keyof typeof CMS_ENTRY_STATUS] | 'all';
