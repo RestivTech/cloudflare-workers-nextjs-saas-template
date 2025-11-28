@@ -13,9 +13,6 @@ import {
   deleteCmsEntry,
 } from "@/lib/cms/cms-repository";
 
-/**
- * Get all CMS entries for a collection
- */
 export const listCmsEntriesAction = createServerAction()
   .input(
     z.object({
@@ -42,9 +39,6 @@ export const listCmsEntriesAction = createServerAction()
     return entries;
   });
 
-/**
- * Get a single CMS entry by ID
- */
 export const getCmsEntryAction = createServerAction()
   .input(z.object({ id: z.string() }))
   .handler(async ({ input }) => {
@@ -65,9 +59,6 @@ export const getCmsEntryAction = createServerAction()
     return entry;
   });
 
-/**
- * Create a new CMS entry
- */
 export const createCmsEntryAction = createServerAction()
   .input(
     z.object({
@@ -101,9 +92,6 @@ export const createCmsEntryAction = createServerAction()
     return newEntry;
   });
 
-/**
- * Update an existing CMS entry
- */
 export const updateCmsEntryAction = createServerAction()
   .input(
     z.object({
@@ -136,9 +124,6 @@ export const updateCmsEntryAction = createServerAction()
     return updatedEntry;
   });
 
-/**
- * Delete a CMS entry
- */
 export const deleteCmsEntryAction = createServerAction()
   .input(z.object({ id: z.string() }))
   .handler(async ({ input }) => {

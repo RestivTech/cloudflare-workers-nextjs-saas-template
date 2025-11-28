@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+"use client";
+
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useServerAction } from "zsa-react";
 import { createCmsEntryAction, updateCmsEntryAction } from "../../../_actions/cms-entry-actions";
-import { listCmsTagsAction } from "../../../_actions/cms-tag-actions";
+import { listCmsTagsAction, createCmsTagAction } from "../../../_actions/cms-tag-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,11 +18,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { MultiSelect, type MultiSelectRef } from "@/components/ui/multi-select";
+import type { MultiSelectOption } from "@/components/ui/multi-select";
 import { TipTapEditor } from "../../_components/tiptap-editor";
-import { Loader2, Save, X, Plus } from "lucide-react";
+import { Loader2, Save, Plus } from "lucide-react";
 import { toast } from "sonner";
-import type { CmsEntry, CmsTag } from "@/db/schema";
+import { generateSlug } from "@/utils/slugify";
+import type { CmsTag } from "@/db/schema";
 import type { GetCmsCollectionResult } from "@/lib/cms/cms-repository";
 
 type CmsEntryFormProps = {
@@ -31,6 +35,7 @@ type CmsEntryFormProps = {
 
 export function CmsEntryForm({ collection, mode, entry }: CmsEntryFormProps) {
   const router = useRouter();
+  const multiSelectRef = useRef<MultiSelectRef>(null);
   const [title, setTitle] = useState(entry?.title || "");
   const [slug, setSlug] = useState(entry?.slug || "");
   const [content, setContent] = useState<unknown>(entry?.content || { type: "doc", content: [] });
@@ -39,27 +44,30 @@ export function CmsEntryForm({ collection, mode, entry }: CmsEntryFormProps) {
   );
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [availableTags, setAvailableTags] = useState<CmsTag[]>([]);
-  const [showTagDropdown, setShowTagDropdown] = useState(false);
+  const [searchValue, setSearchValue] = useState("");
 
   const { execute: createEntry, isPending: isCreating } = useServerAction(createCmsEntryAction);
   const { execute: updateEntry, isPending: isUpdating } = useServerAction(updateCmsEntryAction);
   const { execute: loadTags, isPending: isLoadingTags } = useServerAction(listCmsTagsAction);
+  const { execute: createTag, isPending: isCreatingTag } = useServerAction(createCmsTagAction);
 
   const isPending = isCreating || isUpdating;
 
+  // Load tags function
+  const fetchTags = useCallback(async () => {
+    const [data, error] = await loadTags();
+    if (data) {
+      setAvailableTags(data);
+    }
+    if (error) {
+      console.error("Failed to load tags:", error);
+    }
+  }, [loadTags]);
+
   // Load tags on mount
   useEffect(() => {
-    const fetchTags = async () => {
-      const [data, error] = await loadTags();
-      if (data) {
-        setAvailableTags(data);
-      }
-      if (error) {
-        console.error("Failed to load tags:", error);
-      }
-    };
     fetchTags();
-  }, [loadTags]);
+  }, [fetchTags]);
 
   // Load existing tags for the entry
   useEffect(() => {
@@ -81,24 +89,100 @@ export function CmsEntryForm({ collection, mode, entry }: CmsEntryFormProps) {
     }
   };
 
-  const handleAddTag = (tagId: string) => {
-    if (!selectedTagIds.includes(tagId)) {
-      setSelectedTagIds([...selectedTagIds, tagId]);
+  // Convert tags to MultiSelect options
+  const tagOptions: MultiSelectOption[] = useMemo(
+    () =>
+      availableTags.map((tag) => ({
+        label: tag.name,
+        value: tag.id,
+        style: {
+          badgeColor: tag.color ? `${tag.color}20` : undefined,
+        },
+      })),
+    [availableTags]
+  );
+
+  // Handle creating a new tag
+  const handleCreateTag = useCallback(
+    async (tagName: string) => {
+      if (!tagName.trim()) return;
+
+      const slug = generateSlug(tagName);
+
+      const [data, error] = await createTag({
+        name: tagName.trim(),
+        slug,
+        description: "",
+        color: undefined,
+      });
+
+      if (error) {
+        toast.error(error.message || "Failed to create tag");
+        return;
+      }
+
+      if (data) {
+        toast.success(`Tag "${tagName}" created successfully`);
+        // Reload tags to include the new one
+        await fetchTags();
+        // Auto-select the newly created tag
+        setSelectedTagIds((prev) => [...prev, data.id]);
+        // Clear search value
+        setSearchValue("");
+        // Close the popover
+        multiSelectRef.current?.closePopover();
+      }
+    },
+    [createTag, fetchTags]
+  );
+
+  // Check if search value matches existing tag
+  const hasExactMatch = useMemo(
+    () =>
+      tagOptions.some(
+        (option) => option.label.toLowerCase() === searchValue.toLowerCase()
+      ),
+    [tagOptions, searchValue]
+  );
+
+  // Custom empty indicator with create option
+  const emptyIndicator = useMemo(() => {
+    if (searchValue && !hasExactMatch) {
+      return (
+        <div className="text-center py-6">
+          <p className="text-sm text-muted-foreground mb-3">
+            No tag found for &quot;{searchValue}&quot;
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => handleCreateTag(searchValue)}
+            disabled={isCreatingTag}
+            className="mx-auto"
+          >
+            {isCreatingTag ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                Creating...
+              </>
+            ) : (
+              <>
+                <Plus className="h-4 w-4 mr-2" />
+                Create &quot;{searchValue}&quot;
+              </>
+            )}
+          </Button>
+        </div>
+      );
     }
-    setShowTagDropdown(false);
-  };
 
-  const handleRemoveTag = (tagId: string) => {
-    setSelectedTagIds(selectedTagIds.filter((id) => id !== tagId));
-  };
-
-  const getSelectedTags = () => {
-    return availableTags.filter((tag) => selectedTagIds.includes(tag.id));
-  };
-
-  const getAvailableTagsForSelection = () => {
-    return availableTags.filter((tag) => !selectedTagIds.includes(tag.id));
-  };
+    return (
+      <div className="text-center py-6 text-sm text-muted-foreground">
+        No tags found.
+      </div>
+    );
+  }, [searchValue, hasExactMatch, isCreatingTag, handleCreateTag]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -200,85 +284,33 @@ export function CmsEntryForm({ collection, mode, entry }: CmsEntryFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label>Tags</Label>
-            <div className="space-y-2">
-              {/* Selected tags */}
-              <div className="flex flex-wrap gap-2 min-h-[2rem] border rounded-md p-2">
-                {getSelectedTags().length > 0 ? (
-                  getSelectedTags().map((tag) => (
-                    <Badge
-                      key={tag.id}
-                      variant="secondary"
-                      className="gap-1 pr-1"
-                      style={{
-                        backgroundColor: tag.color ? `${tag.color}20` : undefined,
-                        borderColor: tag.color || undefined,
-                      }}
-                    >
-                      {tag.name}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveTag(tag.id)}
-                        className="ml-1 hover:bg-black/10 rounded-full p-0.5"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </Badge>
-                  ))
-                ) : (
-                  <span className="text-sm text-muted-foreground">No tags selected</span>
-                )}
-              </div>
-
-              {/* Add tag button and dropdown */}
-              <div className="relative">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowTagDropdown(!showTagDropdown)}
-                  disabled={isLoadingTags || getAvailableTagsForSelection().length === 0}
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Tag
-                </Button>
-
-                {showTagDropdown && getAvailableTagsForSelection().length > 0 && (
-                  <div className="absolute z-10 mt-2 w-64 max-h-60 overflow-auto border rounded-md bg-popover shadow-lg">
-                    <div className="p-2 space-y-1">
-                      {getAvailableTagsForSelection().map((tag) => (
-                        <button
-                          key={tag.id}
-                          type="button"
-                          onClick={() => handleAddTag(tag.id)}
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-accent rounded-md flex items-center gap-2"
-                        >
-                          {tag.color && (
-                            <div
-                              className="w-3 h-3 rounded-full border"
-                              style={{ backgroundColor: tag.color }}
-                            />
-                          )}
-                          <span>{tag.name}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <p className="text-xs text-muted-foreground">
-                Select tags to categorize this entry.{" "}
-                <a
-                  href="/admin/cms/tags"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline hover:text-foreground"
-                >
-                  Manage tags
-                </a>
-              </p>
-            </div>
+            <Label htmlFor="tags">Tags</Label>
+            <MultiSelect
+              ref={multiSelectRef}
+              options={tagOptions}
+              onValueChange={setSelectedTagIds}
+              defaultValue={selectedTagIds}
+              placeholder="Select tags..."
+              variant="default"
+              maxCount={5}
+              disabled={isLoadingTags || isCreatingTag}
+              className="w-full"
+              searchable={true}
+              onSearchChange={setSearchValue}
+              emptyIndicator={emptyIndicator}
+              resetOnDefaultValueChange={true}
+            />
+            <p className="text-xs text-muted-foreground">
+              Select tags to categorize this entry. Type to search or create new tags.{" "}
+              <a
+                href="/admin/cms/tags"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-foreground"
+              >
+                Manage tags
+              </a>
+            </p>
           </div>
         </CardContent>
       </Card>
