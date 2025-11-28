@@ -5,19 +5,20 @@ import { eq, and, desc } from "drizzle-orm";
 
 import { getDB } from "@/db"
 import { cmsConfig } from "@/../cms.config";
-import { cmsEntryTable, cmsEntryMediaTable, cmsTagTable, cmsEntryTagTable, CMS_ENTRY_STATUS, type CmsEntry, type CmsTag } from "@/db/schema";
+import { cmsEntryTable, cmsEntryMediaTable, cmsTagTable, cmsEntryTagTable, type CmsEntry, type CmsTag } from "@/db/schema";
+import { CMS_ENTRY_STATUS } from "@/app/enums";
 
 // TODO Implement KV cache for CMS entries
 // TODO Automatically add cms entries to the sitemap and also add the option to hide certain entries from the sitemap
 // TODO Explain how to use the CMS in the README.md file
 
 // Extend CMS_ENTRY_STATUS with 'all' option for queries
-export type CmsEntryStatus = typeof CMS_ENTRY_STATUS[keyof typeof CMS_ENTRY_STATUS] | 'all';
+type CmsEntryStatus = typeof CMS_ENTRY_STATUS[keyof typeof CMS_ENTRY_STATUS];
 
 /**
  * Options for including related data in CMS queries
  */
-export type CmsIncludeRelations = {
+type CmsIncludeRelations = {
   /**
    * Include the user who created the entry
    */
@@ -78,7 +79,7 @@ type GetCmsCollectionParams<T extends keyof typeof cmsConfig.collections> = {
    * Filter by status. Defaults to 'published' only.
    * Pass 'all' to get entries with any status.
    */
-  status?: CmsEntryStatus;
+  status?: CmsEntryStatus | 'all';
   /**
    * Include relations in the query
    */
@@ -94,6 +95,7 @@ type GetCmsCollectionParams<T extends keyof typeof cmsConfig.collections> = {
 };
 
 export type GetCmsCollectionResult = CmsEntry & {
+  status: CmsEntryStatus;
   createdByUser?: {
     id: string;
     firstName: string | null;
@@ -276,7 +278,7 @@ type CreateCmsEntryParams<T extends keyof typeof cmsConfig.collections> = {
    * Custom fields specific to the collection (e.g., excerpt, author, tags, etc.)
    */
   fields: unknown;
-  status?: typeof CMS_ENTRY_STATUS[keyof typeof CMS_ENTRY_STATUS];
+  status?: CmsEntryStatus;
   createdBy: string;
   tagIds?: string[];
 };
@@ -362,7 +364,7 @@ type UpdateCmsEntryParams = {
    * Custom fields specific to the collection (e.g., excerpt, author, tags, etc.)
    */
   fields?: unknown;
-  status?: typeof CMS_ENTRY_STATUS[keyof typeof CMS_ENTRY_STATUS];
+  status?: CmsEntryStatus;
   tagIds?: string[];
 };
 

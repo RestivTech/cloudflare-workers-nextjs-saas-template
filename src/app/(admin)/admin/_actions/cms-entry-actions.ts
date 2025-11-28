@@ -3,21 +3,22 @@
 import { z } from "zod";
 import { createServerAction, ZSAError } from "zsa";
 import { requireAdmin } from "@/utils/auth";
-import { CMS_ENTRY_STATUS } from "@/db/schema";
 import { cmsConfig, zodCollectionEnum } from "@/../cms.config";
+import { createCmsEntrySchema, updateCmsEntrySchema, cmsEntryStatusEnum } from "@/schemas/cms-entry.schema";
 import {
   getCmsCollection,
-  getCmsEntryById,
   createCmsEntry,
   updateCmsEntry,
   deleteCmsEntry,
 } from "@/lib/cms/cms-repository";
 
+const listStatusEnum = z.enum([...cmsEntryStatusEnum.options, "all"]);
+
 export const listCmsEntriesAction = createServerAction()
   .input(
     z.object({
       collection: zodCollectionEnum,
-      status: z.enum(["draft", "published", "archived", "all"]).optional().default("all"),
+      status: listStatusEnum.optional().default("all"),
       limit: z.number().optional().default(20),
       offset: z.number().optional().default(0),
     })
@@ -26,8 +27,8 @@ export const listCmsEntriesAction = createServerAction()
     await requireAdmin();
 
     const entries = await getCmsCollection({
-      collectionSlug: input.collection as keyof typeof cmsConfig.collections,
-      status: input.status as "draft" | "published" | "archived" | "all",
+      collectionSlug: input.collection,
+      status: input.status,
       limit: input.limit,
       offset: input.offset,
       includeRelations: {
@@ -39,38 +40,8 @@ export const listCmsEntriesAction = createServerAction()
     return entries;
   });
 
-export const getCmsEntryAction = createServerAction()
-  .input(z.object({ id: z.string() }))
-  .handler(async ({ input }) => {
-    await requireAdmin();
-
-    const entry = await getCmsEntryById({
-      id: input.id,
-      includeRelations: {
-        createdByUser: true,
-        media: true,
-      },
-    });
-
-    if (!entry) {
-      throw new ZSAError("NOT_FOUND", "Entry not found");
-    }
-
-    return entry;
-  });
-
 export const createCmsEntryAction = createServerAction()
-  .input(
-    z.object({
-      collection: zodCollectionEnum,
-      title: z.string().min(1, "Title is required"),
-      slug: z.string().min(1, "Slug is required"),
-      content: z.any(), // TipTap JSON content
-      fields: z.record(z.any()),
-      status: z.enum(["draft", "published", "archived"]).default("draft"),
-      tagIds: z.array(z.string()).optional(),
-    })
-  )
+  .input(createCmsEntrySchema)
   .handler(async ({ input }) => {
     const session = await requireAdmin();
 
@@ -84,7 +55,7 @@ export const createCmsEntryAction = createServerAction()
       slug: input.slug,
       content: input.content,
       fields: input.fields,
-      status: input.status as typeof CMS_ENTRY_STATUS[keyof typeof CMS_ENTRY_STATUS],
+      status: input.status,
       createdBy: session.userId,
       tagIds: input.tagIds,
     });
@@ -93,17 +64,7 @@ export const createCmsEntryAction = createServerAction()
   });
 
 export const updateCmsEntryAction = createServerAction()
-  .input(
-    z.object({
-      id: z.string(),
-      title: z.string().min(1, "Title is required").optional(),
-      slug: z.string().min(1, "Slug is required").optional(),
-      content: z.any().optional(), // TipTap JSON content
-      fields: z.record(z.any()).optional(),
-      status: z.enum(["draft", "published", "archived"]).optional(),
-      tagIds: z.array(z.string()).optional(),
-    })
-  )
+  .input(updateCmsEntrySchema)
   .handler(async ({ input }) => {
     await requireAdmin();
 
@@ -113,7 +74,7 @@ export const updateCmsEntryAction = createServerAction()
       slug: input.slug,
       content: input.content,
       fields: input.fields,
-      status: input.status as typeof CMS_ENTRY_STATUS[keyof typeof CMS_ENTRY_STATUS] | undefined,
+      status: input.status,
       tagIds: input.tagIds,
     });
 

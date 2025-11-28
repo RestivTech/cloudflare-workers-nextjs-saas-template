@@ -1,16 +1,25 @@
 "use client";
 
-"use client";
-
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import React, { useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useServerAction } from "zsa-react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { formatDistanceToNow } from "date-fns";
 import { createCmsEntryAction, updateCmsEntryAction } from "../../../_actions/cms-entry-actions";
 import { listCmsTagsAction, createCmsTagAction } from "../../../_actions/cms-tag-actions";
+import { cmsEntryFormSchema, type CmsEntryFormData } from "@/schemas/cms-entry.schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormMessage,
+  FormLabel,
+  FormDescription,
+} from "@/components/ui/form";
 import {
   Select,
   SelectContent,
@@ -27,6 +36,25 @@ import { toast } from "sonner";
 import { generateSlug } from "@/utils/slugify";
 import type { CmsTag } from "@/db/schema";
 import type { GetCmsCollectionResult } from "@/lib/cms/cms-repository";
+import { CMS_ENTRY_STATUS } from "@/app/enums";
+
+const CMS_ENTRY_STATUS_CONFIG = [
+  {
+    value: CMS_ENTRY_STATUS.DRAFT,
+    label: 'Draft',
+    color: 'bg-gray-500',
+  },
+  {
+    value: CMS_ENTRY_STATUS.PUBLISHED,
+    label: 'Published',
+    color: 'bg-green-500',
+  },
+  {
+    value: CMS_ENTRY_STATUS.ARCHIVED,
+    label: 'Archived',
+    color: 'bg-orange-500',
+  },
+] as const;
 
 type CmsEntryFormProps = {
   collection: string;
@@ -37,28 +65,57 @@ type CmsEntryFormProps = {
 export function CmsEntryForm({ collection, mode, entry }: CmsEntryFormProps) {
   const router = useRouter();
   const multiSelectRef = useRef<MultiSelectRef>(null);
-  // TODO Use react-hook-form with zod validations from the server actions
-  const [title, setTitle] = useState(entry?.title || "");
-  const [slug, setSlug] = useState(entry?.slug || "");
-  const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(false);
-  const [content, setContent] = useState<unknown>(entry?.content || { type: "doc", content: [] });
-  // TODO Get this enum from the drizzle schema
-  // TODO Add pagination
-  const [status, setStatus] = useState<"draft" | "published" | "archived">(
-    (entry?.status as "draft" | "published" | "archived") || "draft"
-  );
-  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
-  const [availableTags, setAvailableTags] = useState<CmsTag[]>([]);
-  const [searchValue, setSearchValue] = useState("");
+  const isSlugManuallyEditedRef = useRef(false);
 
-  const { execute: createEntry, isPending: isCreating } = useServerAction(createCmsEntryAction);
-  const { execute: updateEntry, isPending: isUpdating } = useServerAction(updateCmsEntryAction);
+  const form = useForm<CmsEntryFormData>({
+    resolver: zodResolver(cmsEntryFormSchema),
+    defaultValues: {
+      title: entry?.title || "",
+      slug: entry?.slug || "",
+      content: entry?.content || { type: "doc", content: [] },
+      status: entry?.status,
+      tagIds: entry?.tags?.map((t) => t.tag.id) || [],
+    },
+  });
+
+  const { execute: createEntry, isPending: isCreating } = useServerAction(createCmsEntryAction, {
+    onError: (error) => {
+      toast.dismiss();
+      toast.error(error.err?.message || "Failed to create entry");
+    },
+    onStart: () => {
+      toast.loading(mode === "create" ? "Creating entry..." : "Updating entry...");
+    },
+    onSuccess: () => {
+      toast.dismiss();
+      toast.success(mode === "create" ? "Entry created successfully" : "Entry updated successfully");
+      router.push(`/admin/cms/${collection}`);
+    },
+  });
+
+  const { execute: updateEntry, isPending: isUpdating } = useServerAction(updateCmsEntryAction, {
+    onError: (error) => {
+      toast.dismiss();
+      toast.error(error.err?.message || "Failed to update entry");
+    },
+    onStart: () => {
+      toast.loading("Updating entry...");
+    },
+    onSuccess: () => {
+      toast.dismiss();
+      toast.success("Entry updated successfully");
+      router.push(`/admin/cms/${collection}`);
+    },
+  });
+
   const { execute: loadTags, isPending: isLoadingTags } = useServerAction(listCmsTagsAction);
   const { execute: createTag, isPending: isCreatingTag } = useServerAction(createCmsTagAction);
 
   const isPending = isCreating || isUpdating;
 
-  // Load tags function
+  const [availableTags, setAvailableTags] = React.useState<CmsTag[]>([]);
+  const [searchValue, setSearchValue] = React.useState("");
+
   const fetchTags = useCallback(async () => {
     const [data, error] = await loadTags();
     if (data) {
@@ -69,39 +126,25 @@ export function CmsEntryForm({ collection, mode, entry }: CmsEntryFormProps) {
     }
   }, [loadTags]);
 
-  // Load tags on mount
   useEffect(() => {
     fetchTags();
   }, [fetchTags]);
 
-  // Load existing tags for the entry
-  useEffect(() => {
-    if (entry?.tags) {
-      const tagIds = entry.tags.map((t) => t.tag.id);
-      setSelectedTagIds(tagIds);
-    }
-  }, [entry]);
-
-  // Auto-generate slug from title
   const handleTitleChange = (value: string) => {
-    setTitle(value);
-    // Only auto-generate slug in create mode and if user hasn't manually edited it
-    if (mode === "create" && !isSlugManuallyEdited) {
+    form.setValue("title", value);
+    if (mode === "create" && !isSlugManuallyEditedRef.current) {
       const generatedSlug = generateSlug(value);
-      setSlug(generatedSlug);
+      form.setValue("slug", generatedSlug);
     }
   };
 
-  // Handle manual slug changes
   const handleSlugChange = (value: string) => {
-    setSlug(value);
-    // Mark as manually edited if user types anything
-    if (!isSlugManuallyEdited) {
-      setIsSlugManuallyEdited(true);
+    form.setValue("slug", value);
+    if (!isSlugManuallyEditedRef.current) {
+      isSlugManuallyEditedRef.current = true;
     }
   };
 
-  // Convert tags to MultiSelect options
   const tagOptions: MultiSelectOption[] = useMemo(
     () =>
       availableTags.map((tag) => ({
@@ -114,7 +157,6 @@ export function CmsEntryForm({ collection, mode, entry }: CmsEntryFormProps) {
     [availableTags]
   );
 
-  // Handle creating a new tag
   const handleCreateTag = useCallback(
     async (tagName: string) => {
       if (!tagName.trim()) return;
@@ -135,20 +177,16 @@ export function CmsEntryForm({ collection, mode, entry }: CmsEntryFormProps) {
 
       if (data) {
         toast.success(`Tag "${tagName}" created successfully`);
-        // Reload tags to include the new one
         await fetchTags();
-        // Auto-select the newly created tag
-        setSelectedTagIds((prev) => [...prev, data.id]);
-        // Clear search value
+        const currentTagIds = form.getValues("tagIds") || [];
+        form.setValue("tagIds", [...currentTagIds, data.id]);
         setSearchValue("");
-        // Close the popover
         multiSelectRef.current?.closePopover();
       }
     },
-    [createTag, fetchTags]
+    [createTag, fetchTags, form]
   );
 
-  // Check if search value matches existing tag
   const hasExactMatch = useMemo(
     () =>
       tagOptions.some(
@@ -157,7 +195,6 @@ export function CmsEntryForm({ collection, mode, entry }: CmsEntryFormProps) {
     [tagOptions, searchValue]
   );
 
-  // Custom empty indicator with create option
   const emptyIndicator = useMemo(() => {
     if (searchValue && !hasExactMatch) {
       return (
@@ -196,228 +233,236 @@ export function CmsEntryForm({ collection, mode, entry }: CmsEntryFormProps) {
     );
   }, [searchValue, hasExactMatch, isCreatingTag, handleCreateTag]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!title || !slug) {
-      toast.error("Title and slug are required");
-      return;
-    }
-
+  const onSubmit = async (data: CmsEntryFormData) => {
     if (mode === "create") {
-      const [data, error] = await createEntry({
-        collection,
-        title,
-        slug,
-        content,
-        fields: {}, // We'll add custom fields later
-        status,
-        tagIds: selectedTagIds,
+      await createEntry({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        collection: collection as any,
+        title: data.title,
+        slug: data.slug,
+        content: data.content,
+        fields: {},
+        status: data.status,
+        tagIds: data.tagIds || [],
       });
-
-      if (error) {
-        toast.error(error.message);
-        return;
-      }
-
-      if (data) {
-        toast.success("Entry created successfully");
-        router.push(`/admin/cms/${collection}`);
-      }
     } else {
       if (!entry) return;
 
-      const [data, error] = await updateEntry({
+      await updateEntry({
         id: entry.id,
-        title,
-        slug,
-        content,
-        fields: {}, // We'll add custom fields later
-        status,
-        tagIds: selectedTagIds,
+        title: data.title,
+        slug: data.slug,
+        content: data.content,
+        fields: {},
+        status: data.status,
+        tagIds: data.tagIds || [],
       });
-
-      if (error) {
-        toast.error(error.message);
-        return;
-      }
-
-      if (data) {
-        toast.success("Entry updated successfully");
-        router.push(`/admin/cms/${collection}`);
-      }
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Header with Title and Action Buttons */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex-1 min-w-0">
-          <h2 className="text-2xl font-semibold tracking-tight">
-            {mode === "create" ? "Create New Entry" : "Edit Entry"}
-          </h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            {mode === "create"
-              ? "Fill in the details below to create a new entry"
-              : "Update the entry details below"}
-          </p>
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex-1 min-w-0">
+            <h2 className="text-2xl font-semibold tracking-tight">
+              {mode === "create" ? "Create New Entry" : "Edit Entry"}
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              {mode === "create"
+                ? "Fill in the details below to create a new entry"
+                : "Update the entry details below"}
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => router.push(`/admin/cms/${collection}`)}
+              disabled={isPending}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isPending}>
+              {isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  {mode === "create" ? "Creating..." : "Saving..."}
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  {mode === "create" ? "Create Entry" : "Save Changes"}
+                </>
+              )}
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => router.push(`/admin/cms/${collection}`)}
-            disabled={isPending}
-          >
-            Cancel
-          </Button>
-          <Button type="submit" disabled={isPending}>
-            {isPending ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                {mode === "create" ? "Creating..." : "Saving..."}
-              </>
-            ) : (
-              <>
-                <Save className="h-4 w-4 mr-2" />
-                {mode === "create" ? "Create Entry" : "Save Changes"}
-              </>
-            )}
-          </Button>
-        </div>
-      </div>
 
-      {/* Main Content Area */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column - Main Content (2/3 width on large screens) */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Title and Slug Card */}
-          <Card>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-6">
+            <Card>
             <CardHeader>
               <CardTitle>Basic Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="title">Title *</Label>
-                <Input
-                  id="title"
-                  value={title}
-                  onChange={(e) => handleTitleChange(e.target.value)}
-                  placeholder="Enter a compelling title..."
-                  required
-                  className="text-lg"
-                />
-              </div>
+              <FormField
+                control={form.control}
+                name="title"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Title *</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        placeholder="Enter a compelling title..."
+                        className="text-lg"
+                        onChange={(e) => {
+                          field.onChange(e);
+                          handleTitleChange(e.target.value);
+                        }}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-              <div className="space-y-2">
-                <Label htmlFor="slug">URL Slug *</Label>
-                <Input
-                  id="slug"
-                  value={slug}
-                  onChange={(e) => handleSlugChange(e.target.value)}
-                  placeholder="url-friendly-slug"
-                  required
-                />
-                <p className="text-xs text-muted-foreground">
-                  This will be used in the URL. Auto-generated from title, but you can customize it.
-                </p>
-              </div>
+              <FormField
+                control={form.control}
+                name="slug"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>URL Slug *</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        placeholder="url-friendly-slug"
+                        onChange={(e) => {
+                          field.onChange(e);
+                          handleSlugChange(e.target.value);
+                        }}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      This will be used in the URL. Auto-generated from title, but you can customize it.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </CardContent>
           </Card>
 
-          {/* Content Editor Card */}
           <Card>
             <CardHeader>
               <CardTitle>Content</CardTitle>
             </CardHeader>
             <CardContent>
-              <TipTapEditor content={content} onChange={(newContent) => setContent(newContent)} />
+              <FormField
+                control={form.control}
+                name="content"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <TipTapEditor
+                        content={field.value}
+                        onChange={(newContent) => field.onChange(newContent)}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </CardContent>
           </Card>
-        </div>
+          </div>
 
-        {/* Right Column - Sidebar (1/3 width on large screens) */}
-        <div className="space-y-6">
-          {/* Publishing Options Card */}
-          <Card>
+          <div className="space-y-6">
+            <Card>
             <CardHeader>
               <CardTitle>Publishing</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="status">Status</Label>
-                <Select value={status} onValueChange={(value) => setStatus(value as typeof status)}>
-                  <SelectTrigger id="status">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="draft">
-                      <div className="flex items-center gap-2">
-                        <div className="h-2 w-2 rounded-full bg-gray-500" />
-                        <span>Draft</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="published">
-                      <div className="flex items-center gap-2">
-                        <div className="h-2 w-2 rounded-full bg-green-500" />
-                        <span>Published</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="archived">
-                      <div className="flex items-center gap-2">
-                        <div className="h-2 w-2 rounded-full bg-orange-500" />
-                        <span>Archived</span>
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  Control the visibility of this entry
-                </p>
-              </div>
+              <FormField
+                control={form.control}
+                name="status"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Status</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {CMS_ENTRY_STATUS_CONFIG.map((status) => (
+                          <SelectItem key={status.value} value={status.value}>
+                            <div className="flex items-center gap-2">
+                              <div className={`h-2 w-2 rounded-full ${status.color}`} />
+                              <span>{status.label}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      Control the visibility of this entry
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </CardContent>
           </Card>
 
-          {/* Tags Card */}
           <Card>
             <CardHeader>
               <CardTitle>Tags</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="tags">Select Tags</Label>
-                <MultiSelect
-                  ref={multiSelectRef}
-                  options={tagOptions}
-                  onValueChange={setSelectedTagIds}
-                  defaultValue={selectedTagIds}
-                  placeholder="Select tags..."
-                  variant="default"
-                  maxCount={3}
-                  disabled={isLoadingTags || isCreatingTag}
-                  className="w-full"
-                  searchable={true}
-                  onSearchChange={setSearchValue}
-                  emptyIndicator={emptyIndicator}
-                  resetOnDefaultValueChange={true}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Type to search or create new tags.{" "}
-                  <a
-                    href="/admin/cms/tags"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline hover:text-foreground"
-                  >
-                    Manage tags
-                  </a>
-                </p>
-              </div>
+              <FormField
+                control={form.control}
+                name="tagIds"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Select Tags</FormLabel>
+                    <FormControl>
+                      <MultiSelect
+                        ref={multiSelectRef}
+                        options={tagOptions}
+                        onValueChange={field.onChange}
+                        defaultValue={field.value || []}
+                        placeholder="Select tags..."
+                        variant="default"
+                        maxCount={3}
+                        disabled={isLoadingTags || isCreatingTag}
+                        className="w-full"
+                        searchable={true}
+                        onSearchChange={setSearchValue}
+                        emptyIndicator={emptyIndicator}
+                        resetOnDefaultValueChange={true}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Type to search or create new tags.{" "}
+                      <a
+                        href="/admin/cms/tags"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline hover:text-foreground"
+                      >
+                        Manage tags
+                      </a>
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </CardContent>
           </Card>
 
-          {/* Quick Info Card */}
           {mode === "edit" && entry && (
             <Card>
               <CardHeader>
@@ -457,8 +502,9 @@ export function CmsEntryForm({ collection, mode, entry }: CmsEntryFormProps) {
               </CardContent>
             </Card>
           )}
+          </div>
         </div>
-      </div>
-    </form>
+      </form>
+    </Form>
   );
 }

@@ -1,5 +1,3 @@
-"use server";
-
 export type DefineCmsCollection = {
   slug: string;
   labels: {

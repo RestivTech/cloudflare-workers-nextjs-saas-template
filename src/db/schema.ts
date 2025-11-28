@@ -3,6 +3,7 @@ import { relations, sql } from "drizzle-orm";
 import { type InferSelectModel } from "drizzle-orm";
 
 import { createId } from '@paralleldrive/cuid2'
+import { CMS_ENTRY_STATUS } from "@/app/enums";
 
 export const ROLES_ENUM = {
   ADMIN: 'admin',
@@ -301,12 +302,6 @@ export const cmsMediaTable = sqliteTable("cms_media", {
   // Index for finding all media uploaded by a user
   index('cms_media_uploaded_by_idx').on(table.uploadedBy),
 ]));
-
-export const CMS_ENTRY_STATUS = {
-  DRAFT: 'draft',
-  PUBLISHED: 'published',
-  ARCHIVED: 'archived',
-} as const;
 
 const cmsEntryStatusTuple = Object.values(CMS_ENTRY_STATUS) as [string, ...string[]];
 

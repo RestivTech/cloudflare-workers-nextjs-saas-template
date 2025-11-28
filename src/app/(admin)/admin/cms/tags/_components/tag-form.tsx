@@ -47,17 +47,14 @@ export function TagForm({ mode, tag }: TagFormProps) {
   // Auto-generate slug from name
   const handleNameChange = (value: string) => {
     setName(value);
-    // Only auto-generate slug in create mode and if user hasn't manually edited it
     if (mode === "create" && !isSlugManuallyEdited) {
       const generatedSlug = generateSlug(value);
       setSlug(generatedSlug);
     }
   };
 
-  // Handle manual slug changes
   const handleSlugChange = (value: string) => {
     setSlug(value);
-    // Mark as manually edited if user types anything
     if (!isSlugManuallyEdited) {
       setIsSlugManuallyEdited(true);
     }

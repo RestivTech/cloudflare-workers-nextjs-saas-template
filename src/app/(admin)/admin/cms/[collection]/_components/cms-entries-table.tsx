@@ -36,6 +36,7 @@ import {
 
 type StatusFilter = "all" | "draft" | "published" | "archived";
 
+// TODO Add pagination
 export function CmsEntriesTable({ collection }: { collection: string }) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [deleteEntryId, setDeleteEntryId] = useState<string | null>(null);
