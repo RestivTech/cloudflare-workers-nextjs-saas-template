@@ -7,6 +7,7 @@ import { cmsConfig, zodCollectionEnum } from "@/../cms.config";
 import { createCmsEntrySchema, updateCmsEntrySchema, cmsEntryStatusEnum } from "@/schemas/cms-entry.schema";
 import {
   getCmsCollection,
+  getCmsCollectionCount,
   createCmsEntry,
   updateCmsEntry,
   deleteCmsEntry,
@@ -26,18 +27,24 @@ export const listCmsEntriesAction = createServerAction()
   .handler(async ({ input }) => {
     await requireAdmin();
 
-    const entries = await getCmsCollection({
-      collectionSlug: input.collection,
-      status: input.status,
-      limit: input.limit,
-      offset: input.offset,
-      includeRelations: {
-        createdByUser: true,
-        tags: true,
-      },
-    });
+    const [entries, totalCount] = await Promise.all([
+      getCmsCollection({
+        collectionSlug: input.collection,
+        status: input.status,
+        limit: input.limit,
+        offset: input.offset,
+        includeRelations: {
+          createdByUser: true,
+          tags: true,
+        },
+      }),
+      getCmsCollectionCount({
+        collectionSlug: input.collection,
+        status: input.status,
+      }),
+    ]);
 
-    return entries;
+    return { entries, totalCount };
   });
 
 export const createCmsEntryAction = createServerAction()

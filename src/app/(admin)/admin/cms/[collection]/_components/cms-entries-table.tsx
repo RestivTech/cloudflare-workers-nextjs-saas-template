@@ -1,20 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useServerAction } from "zsa-react";
 import { listCmsEntriesAction, deleteCmsEntryAction } from "../../../_actions/cms-entry-actions";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import Link from "next/link";
-import { Edit, Trash2, Loader2 } from "lucide-react";
+import { Edit, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import {
   Select,
@@ -33,50 +24,172 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { DataTable } from "@/components/data-table";
+import { type ColumnDef } from "@tanstack/react-table";
+import { type GetCmsCollectionResult } from "@/lib/cms/cms-repository";
+import { type CollectionsUnion } from "@/../cms.config";
 
 type StatusFilter = "all" | "draft" | "published" | "archived";
 
-// TODO Add pagination
-export function CmsEntriesTable({ collection }: { collection: string }) {
+const getStatusBadgeVariant = (status: string) => {
+  switch (status) {
+    case "published":
+      return "default";
+    case "draft":
+      return "secondary";
+    case "archived":
+      return "outline";
+    default:
+      return "secondary";
+  }
+};
+
+export function CmsEntriesTable({ collection }: { collection: CollectionsUnion }) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [deleteEntryId, setDeleteEntryId] = useState<string | null>(null);
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize] = useState(20);
 
-  const { execute: listEntries, data: entries, isPending } = useServerAction(listCmsEntriesAction);
+  const { execute: listEntries, data, isPending } = useServerAction(listCmsEntriesAction);
   const { execute: deleteEntry, isPending: isDeleting } = useServerAction(deleteCmsEntryAction);
+
+  const columns: ColumnDef<GetCmsCollectionResult>[] = useMemo(() => [
+    {
+      accessorKey: "title",
+      header: "Title",
+      cell: ({ row }) => <span className="font-medium">{row.original.title}</span>,
+    },
+    {
+      accessorKey: "slug",
+      header: "Slug",
+      cell: ({ row }) => <span className="text-muted-foreground">{row.original.slug}</span>,
+    },
+    {
+      accessorKey: "status",
+      header: "Status",
+      cell: ({ row }) => (
+        <Badge variant={getStatusBadgeVariant(row.original.status)}>
+          {row.original.status}
+        </Badge>
+      ),
+    },
+    {
+      id: "tags",
+      header: "Tags",
+      cell: ({ row }) => (
+        <div className="flex flex-wrap gap-1">
+          {row.original.tags && row.original.tags.length > 0 ? (
+            <>
+              {row.original.tags.slice(0, 3).map((entryTag) => (
+                <Badge
+                  key={entryTag.tag.id}
+                  variant="outline"
+                  className="text-xs"
+                  style={{
+                    backgroundColor: entryTag.tag.color ? `${entryTag.tag.color}20` : undefined,
+                    borderColor: entryTag.tag.color || undefined,
+                  }}
+                >
+                  {entryTag.tag.name}
+                </Badge>
+              ))}
+              {row.original.tags.length > 3 && (
+                <Badge variant="outline" className="text-xs">
+                  +{row.original.tags.length - 3}
+                </Badge>
+              )}
+            </>
+          ) : (
+            <span className="text-muted-foreground text-sm">—</span>
+          )}
+        </div>
+      ),
+    },
+    {
+      id: "author",
+      header: "Author",
+      cell: ({ row }) => (
+        <span>
+          {row.original.createdByUser
+            ? `${row.original.createdByUser.firstName || ""} ${row.original.createdByUser.lastName || ""}`.trim() ||
+              row.original.createdByUser.email
+            : "Unknown"}
+        </span>
+      ),
+    },
+    {
+      accessorKey: "updatedAt",
+      header: "Updated",
+      cell: ({ row }) => (
+        <span>
+          {row.original.updatedAt
+            ? formatDistanceToNow(new Date(row.original.updatedAt), { addSuffix: true })
+            : "—"}
+        </span>
+      ),
+    },
+    {
+      id: "actions",
+      header: () => <div className="text-right">Actions</div>,
+      cell: ({ row }) => (
+        <div className="flex items-center justify-end gap-2">
+          <Button variant="ghost" size="sm" asChild>
+            <a href={`/admin/cms/${collection}/${row.original.id}`}>
+              <Edit className="h-4 w-4" />
+            </a>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setDeleteEntryId(row.original.id)}
+          >
+            <Trash2 className="h-4 w-4 text-destructive" />
+          </Button>
+        </div>
+      ),
+    },
+  ], [collection, setDeleteEntryId]);
 
   // Load entries on mount and when filters change
   useEffect(() => {
-    listEntries({ collection, status: statusFilter });
-  }, [collection, statusFilter, listEntries]);
+    listEntries({
+      collection,
+      status: statusFilter,
+      limit: pageSize,
+      offset: pageIndex * pageSize,
+    });
+  }, [collection, statusFilter, pageIndex, pageSize, listEntries]);
 
   const handleDelete = async (id: string) => {
     const [, error] = await deleteEntry({ id });
     if (!error) {
       // Refresh the list
-      listEntries({ collection, status: statusFilter });
+      listEntries({
+        collection,
+        status: statusFilter,
+        limit: pageSize,
+        offset: pageIndex * pageSize,
+      });
       setDeleteEntryId(null);
     }
   };
 
-  const getStatusBadgeVariant = (status: string) => {
-    switch (status) {
-      case "published":
-        return "default";
-      case "draft":
-        return "secondary";
-      case "archived":
-        return "outline";
-      default:
-        return "secondary";
-    }
-  };
+  const entries = data?.entries ?? [];
+  const totalCount = data?.totalCount ?? 0;
+  const pageCount = Math.ceil(totalCount / pageSize);
 
   return (
     <>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">Filter by status:</span>
-          <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as StatusFilter)}>
+          <Select
+            value={statusFilter}
+            onValueChange={(value) => {
+              setStatusFilter(value as StatusFilter);
+              setPageIndex(0);
+            }}
+          >
             <SelectTrigger className="w-[180px]">
               <SelectValue />
             </SelectTrigger>
@@ -90,101 +203,29 @@ export function CmsEntriesTable({ collection }: { collection: string }) {
         </div>
       </div>
 
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Title</TableHead>
-              <TableHead>Slug</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Tags</TableHead>
-              <TableHead>Author</TableHead>
-              <TableHead>Updated</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isPending ? (
-              <TableRow>
-                <TableCell colSpan={7} className="text-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin mx-auto" />
-                </TableCell>
-              </TableRow>
-            ) : entries && entries.length > 0 ? (
-              entries.map((entry) => (
-                <TableRow key={entry.id}>
-                  <TableCell className="font-medium">{entry.title}</TableCell>
-                  <TableCell className="text-muted-foreground">{entry.slug}</TableCell>
-                  <TableCell>
-                    <Badge variant={getStatusBadgeVariant(entry.status)}>
-                      {entry.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {entry.tags && entry.tags.length > 0 ? (
-                        entry.tags.slice(0, 3).map((entryTag) => (
-                          <Badge
-                            key={entryTag.tag.id}
-                            variant="outline"
-                            className="text-xs"
-                            style={{
-                              backgroundColor: entryTag.tag.color ? `${entryTag.tag.color}20` : undefined,
-                              borderColor: entryTag.tag.color || undefined,
-                            }}
-                          >
-                            {entryTag.tag.name}
-                          </Badge>
-                        ))
-                      ) : (
-                        <span className="text-muted-foreground text-sm">—</span>
-                      )}
-                      {entry.tags && entry.tags.length > 3 && (
-                        <Badge variant="outline" className="text-xs">
-                          +{entry.tags.length - 3}
-                        </Badge>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {entry.createdByUser
-                      ? `${entry.createdByUser.firstName || ""} ${entry.createdByUser.lastName || ""}`.trim() ||
-                        entry.createdByUser.email
-                      : "Unknown"}
-                  </TableCell>
-                  <TableCell>
-                    {entry.updatedAt
-                      ? formatDistanceToNow(new Date(entry.updatedAt), { addSuffix: true })
-                      : "—"}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <Button variant="ghost" size="sm" asChild>
-                        <Link href={`/admin/cms/${collection}/${entry.id}`}>
-                          <Edit className="h-4 w-4" />
-                        </Link>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setDeleteEntryId(entry.id)}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                  No entries found. Create your first one!
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      {isPending ? (
+        <div className="flex items-center justify-center py-8">
+          <div className="text-sm text-muted-foreground">Loading entries...</div>
+        </div>
+      ) : (
+        <DataTable
+          columns={columns}
+          data={entries}
+          pageCount={pageCount}
+          pageIndex={pageIndex}
+          pageSize={pageSize}
+          onPageChange={setPageIndex}
+          onPageSizeChange={(newSize) => {
+            setPageSize(newSize);
+            setPageIndex(0);
+          }}
+          totalCount={totalCount}
+          itemNameSingular="entry"
+          itemNamePlural="entries"
+          getRowHref={(row) => `/admin/cms/${collection}/${row.id}`}
+          excludeClickableColumns={["actions"]}
+        />
+      )}
 
       <AlertDialog open={deleteEntryId !== null} onOpenChange={(open) => !open && setDeleteEntryId(null)}>
         <AlertDialogContent>
@@ -195,20 +236,13 @@ export function CmsEntriesTable({ collection }: { collection: string }) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deleteEntryId && handleDelete(deleteEntryId)}
               disabled={isDeleting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {isDeleting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  Deleting...
-                </>
-              ) : (
-                "Delete"
-              )}
+              {isDeleting ? "Deleting..." : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

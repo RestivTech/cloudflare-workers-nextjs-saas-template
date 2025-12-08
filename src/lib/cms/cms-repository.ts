@@ -1,7 +1,7 @@
 import "server-only";
 
 import { cache } from "react";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, count } from "drizzle-orm";
 
 import { getDB } from "@/db"
 import { cmsConfig } from "@/../cms.config";
@@ -174,6 +174,49 @@ export const getCmsCollection = cache(async <T extends keyof typeof cmsConfig.co
   const entries = await query;
 
   return entries as GetCmsCollectionResult[];
+});
+
+/**
+ * Get the total count of CMS entries in a collection
+ *
+ * @example
+ * // Get total count of blog posts
+ * const count = await getCmsCollectionCount({
+ *   collectionSlug: 'blog',
+ *   status: 'published'
+ * });
+ */
+export const getCmsCollectionCount = cache(async <T extends keyof typeof cmsConfig.collections>({
+  collectionSlug,
+  status = CMS_ENTRY_STATUS.PUBLISHED,
+}: {
+  collectionSlug: T;
+  status?: CmsEntryStatus | 'all';
+}): Promise<number> => {
+  const db = getDB();
+
+  // Get the collection config
+  const collection = cmsConfig.collections[collectionSlug];
+  if (!collection) {
+    throw new Error(`Collection "${String(collectionSlug)}" not found in CMS config`);
+  }
+
+  // Build the where clause
+  const whereConditions = [
+    eq(cmsEntryTable.collection, collection.slug),
+  ];
+
+  // Add status filter if not 'all'
+  if (status !== 'all') {
+    whereConditions.push(eq(cmsEntryTable.status, status));
+  }
+
+  const result = await db
+    .select({ count: count() })
+    .from(cmsEntryTable)
+    .where(and(...whereConditions));
+
+  return result[0]?.count ?? 0;
 });
 
 

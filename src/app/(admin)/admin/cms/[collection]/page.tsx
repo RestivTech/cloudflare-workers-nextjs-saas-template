@@ -5,11 +5,12 @@ import { CmsEntriesTable } from "./_components/cms-entries-table";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Plus, ArrowLeft } from "lucide-react";
+import { type CollectionsUnion } from "@/../cms.config";
 
 export default async function CollectionPage({
   params,
 }: {
-  params: Promise<{ collection: string }>;
+  params: Promise<{ collection: CollectionsUnion }>;
 }) {
   const session = await requireAdmin({ doNotThrowError: true });
 
