@@ -31,12 +31,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MultiSelect, type MultiSelectRef } from "@/components/ui/multi-select";
 import type { MultiSelectOption } from "@/components/ui/multi-select";
 import { SimpleEditor } from "@/components/tiptap-templates/simple/simple-editor";
-import { Loader2, Save, Plus } from "lucide-react";
+import { Loader2, Save, Plus, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { generateSlug } from "@/utils/slugify";
 import type { CmsTag } from "@/db/schema";
 import type { GetCmsCollectionResult } from "@/lib/cms/cms-repository";
 import { CMS_ENTRY_STATUS } from "@/app/enums";
+import useBeforeUnload from "@/hooks/use-before-unload";
 
 const CMS_ENTRY_STATUS_CONFIG = [
   {
@@ -60,9 +61,11 @@ type CmsEntryFormProps = {
   collection: string;
   mode: "create" | "edit";
   entry?: GetCmsCollectionResult;
+  pageTitle: string;
+  pageSubtitle: string;
 };
 
-export function CmsEntryForm({ collection, mode, entry }: CmsEntryFormProps) {
+export function CmsEntryForm({ collection, mode, entry, pageTitle, pageSubtitle }: CmsEntryFormProps) {
   const router = useRouter();
   const multiSelectRef = useRef<MultiSelectRef>(null);
   const isSlugManuallyEditedRef = useRef(false);
@@ -129,6 +132,23 @@ export function CmsEntryForm({ collection, mode, entry }: CmsEntryFormProps) {
   useEffect(() => {
     fetchTags();
   }, [fetchTags]);
+
+  const isDirty = form.formState.isDirty;
+
+  useBeforeUnload(() => isDirty && !isPending);
+
+  const handleNavigateBack = useCallback((e?: React.MouseEvent) => {
+    if (isDirty && !isPending) {
+      const confirmed = window.confirm(
+        "You have unsaved changes. Are you sure you want to leave?"
+      );
+      if (!confirmed) {
+        e?.preventDefault();
+        return;
+      }
+    }
+    router.push(`/admin/cms/${collection}`);
+  }, [isDirty, isPending, router, collection]);
 
   const handleTitleChange = (value: string) => {
     form.setValue("title", value);
@@ -263,25 +283,38 @@ export function CmsEntryForm({ collection, mode, entry }: CmsEntryFormProps) {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex-1 min-w-0">
-            <h2 className="text-2xl font-semibold tracking-tight">
-              {mode === "create" ? "Create New Entry" : "Edit Entry"}
-            </h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              {mode === "create"
-                ? "Fill in the details below to create a new entry"
-                : "Update the entry details below"}
-            </p>
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleNavigateBack}
+              disabled={isPending}
+              asChild
+            >
+              <span>
+                <ArrowLeft className="h-4 w-4" />
+              </span>
+            </Button>
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">
+                {pageTitle}
+              </h1>
+              <p className="text-muted-foreground mt-2">{pageSubtitle}</p>
+            </div>
           </div>
+
           <div className="flex items-center gap-3">
             <Button
               type="button"
               variant="outline"
-              onClick={() => router.push(`/admin/cms/${collection}`)}
+              onClick={handleNavigateBack}
               disabled={isPending}
+              asChild
             >
-              Cancel
+              <span>
+                Cancel
+              </span>
             </Button>
             <Button type="submit" disabled={isPending}>
               {isPending ? (
