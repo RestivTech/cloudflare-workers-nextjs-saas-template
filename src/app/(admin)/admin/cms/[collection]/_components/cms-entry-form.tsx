@@ -299,8 +299,8 @@ export function CmsEntryForm({ collection, mode, entry }: CmsEntryFormProps) {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          <div className="lg:col-span-3 space-y-6">
             <Card>
             <CardHeader>
               <CardTitle>Basic Information</CardTitle>
@@ -354,30 +354,24 @@ export function CmsEntryForm({ collection, mode, entry }: CmsEntryFormProps) {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Content</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <FormField
-                control={form.control}
-                name="content"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormControl>
-                      <div className="relative">
-                        <SimpleEditor
-                          content={field.value}
-                          onChange={(newContent) => field.onChange(newContent)}
-                        />
-                      </div>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </CardContent>
-          </Card>
+          <FormField
+            control={form.control}
+            name="content"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Content</FormLabel>
+                <FormControl>
+                  <div className="relative">
+                    <SimpleEditor
+                      content={field.value}
+                      onChange={(newContent) => field.onChange(newContent)}
+                    />
+                  </div>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
           </div>
 
           <div className="space-y-6">

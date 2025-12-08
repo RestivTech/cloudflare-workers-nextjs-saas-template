@@ -14,6 +14,10 @@ import { Subscript } from "@tiptap/extension-subscript"
 import { Superscript } from "@tiptap/extension-superscript"
 import { Selection } from "@tiptap/extensions"
 import { Markdown } from "@tiptap/markdown"
+import { Table } from "@tiptap/extension-table/table"
+import { TableRow } from "@tiptap/extension-table/row"
+import { TableCell } from "@tiptap/extension-table/cell"
+import { TableHeader } from "@tiptap/extension-table/header"
 
 // --- UI Primitives ---
 import { Button } from "@/components/tiptap-ui-primitive/button"
@@ -34,6 +38,7 @@ import "@/components/tiptap-node/list-node/list-node.scss"
 import "@/components/tiptap-node/image-node/image-node.scss"
 import "@/components/tiptap-node/heading-node/heading-node.scss"
 import "@/components/tiptap-node/paragraph-node/paragraph-node.scss"
+import "@/components/tiptap-node/table-node/table-node.scss"
 
 // --- Tiptap Extension ---
 import { PasteMarkdown } from "@/components/tiptap-extension/markdown-paste-extension"
@@ -44,6 +49,9 @@ import { ImageUploadButton } from "@/components/tiptap-ui/image-upload-button"
 import { ListDropdownMenu } from "@/components/tiptap-ui/list-dropdown-menu"
 import { BlockquoteButton } from "@/components/tiptap-ui/blockquote-button"
 import { CodeBlockButton } from "@/components/tiptap-ui/code-block-button"
+import { HorizontalRuleButton } from "@/components/tiptap-ui/horizontal-rule-button"
+import { TableButton } from "@/components/tiptap-ui/table-button"
+import { TableDropdownMenu } from "@/components/tiptap-ui/table-dropdown-menu"
 import {
   ColorHighlightPopover,
   ColorHighlightPopoverContent,
@@ -107,6 +115,7 @@ const MainToolbarContent = ({
         />
         <BlockquoteButton />
         <CodeBlockButton />
+        <HorizontalRuleButton />
       </ToolbarGroup>
 
       <ToolbarGroup>
@@ -137,6 +146,8 @@ const MainToolbarContent = ({
 
       <ToolbarGroup>
         <ImageUploadButton text="Add" />
+        <TableButton />
+        <TableDropdownMenu portal={isMobile} />
       </ToolbarGroup>
 
       <Spacer />
@@ -217,6 +228,12 @@ export function SimpleEditor({ content, onChange, editable = true }: SimpleEdito
       Selection,
       Markdown,
       PasteMarkdown,
+      Table.configure({
+        resizable: true,
+      }),
+      TableRow,
+      TableHeader,
+      TableCell,
       ImageUploadNode.configure({
         accept: "image/*",
         maxSize: MAX_FILE_SIZE,
