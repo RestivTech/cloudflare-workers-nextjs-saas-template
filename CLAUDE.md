@@ -205,6 +205,13 @@ You are an expert in TypeScript, Node.js, Next.js App Router, React, Shadcn UI, 
 - Structure files: exported component, subcomponents, helpers, static content, types.
 - Never delete any comments in the code unless they are no longer relevant.
 
+### Commenting Guidelines
+
+- Do not add comments for obvious or self-explanatory code.
+- Only add comments for non-trivial logic, edge cases, workarounds, or business rules that aren't immediately clear from the code itself.
+- Comments should explain "why" something is done, not "what" is being done (the code should be self-documenting for the "what").
+- Avoid redundant comments like `// Set user name` above `user.name = name`.
+
 ### Function Guidelines
 
 - When a function has more than 1 parameter, always pass them as a named object.

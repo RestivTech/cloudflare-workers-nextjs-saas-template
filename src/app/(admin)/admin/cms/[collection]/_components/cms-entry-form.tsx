@@ -365,10 +365,12 @@ export function CmsEntryForm({ collection, mode, entry }: CmsEntryFormProps) {
                 render={({ field }) => (
                   <FormItem>
                     <FormControl>
-                      <SimpleEditor
-                        content={field.value}
-                        onChange={(newContent) => field.onChange(newContent)}
-                      />
+                      <div className="relative">
+                        <SimpleEditor
+                          content={field.value}
+                          onChange={(newContent) => field.onChange(newContent)}
+                        />
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>

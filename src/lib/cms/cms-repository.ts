@@ -13,6 +13,7 @@ import { CMS_ENTRY_STATUS } from "@/app/enums";
 // TODO Explain how to use the CMS in the README.md file
 // TODO Add version history
 // TODO Add scheduled publishing
+// TODO Uploading images from the editor and a dedicated media collection admin page
 
 // Extend CMS_ENTRY_STATUS with 'all' option for queries
 type CmsEntryStatus = typeof CMS_ENTRY_STATUS[keyof typeof CMS_ENTRY_STATUS];

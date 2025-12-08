@@ -13,6 +13,7 @@ import { Highlight } from "@tiptap/extension-highlight"
 import { Subscript } from "@tiptap/extension-subscript"
 import { Superscript } from "@tiptap/extension-superscript"
 import { Selection } from "@tiptap/extensions"
+import { Markdown } from "@tiptap/markdown"
 
 // --- UI Primitives ---
 import { Button } from "@/components/tiptap-ui-primitive/button"
@@ -33,6 +34,9 @@ import "@/components/tiptap-node/list-node/list-node.scss"
 import "@/components/tiptap-node/image-node/image-node.scss"
 import "@/components/tiptap-node/heading-node/heading-node.scss"
 import "@/components/tiptap-node/paragraph-node/paragraph-node.scss"
+
+// --- Tiptap Extension ---
+import { PasteMarkdown } from "@/components/tiptap-extension/markdown-paste-extension"
 
 // --- Tiptap UI ---
 import { HeadingDropdownMenu } from "@/components/tiptap-ui/heading-dropdown-menu"
@@ -90,14 +94,10 @@ const MainToolbarContent = ({
 }) => {
   return (
     <>
-      <Spacer />
-
       <ToolbarGroup>
         <UndoRedoButton action="undo" />
         <UndoRedoButton action="redo" />
       </ToolbarGroup>
-
-      <ToolbarSeparator />
 
       <ToolbarGroup>
         <HeadingDropdownMenu levels={[1, 2, 3, 4]} portal={isMobile} />
@@ -108,8 +108,6 @@ const MainToolbarContent = ({
         <BlockquoteButton />
         <CodeBlockButton />
       </ToolbarGroup>
-
-      <ToolbarSeparator />
 
       <ToolbarGroup>
         <MarkButton type="bold" />
@@ -125,14 +123,10 @@ const MainToolbarContent = ({
         {!isMobile ? <LinkPopover /> : <LinkButton onClick={onLinkClick} />}
       </ToolbarGroup>
 
-      <ToolbarSeparator />
-
       <ToolbarGroup>
         <MarkButton type="superscript" />
         <MarkButton type="subscript" />
       </ToolbarGroup>
-
-      <ToolbarSeparator />
 
       <ToolbarGroup>
         <TextAlignButton align="left" />
@@ -141,15 +135,11 @@ const MainToolbarContent = ({
         <TextAlignButton align="justify" />
       </ToolbarGroup>
 
-      <ToolbarSeparator />
-
       <ToolbarGroup>
         <ImageUploadButton text="Add" />
       </ToolbarGroup>
 
       <Spacer />
-
-      {isMobile && <ToolbarSeparator />}
 
       <ToolbarGroup>
         <ThemeToggle />
@@ -225,6 +215,8 @@ export function SimpleEditor({ content, onChange, editable = true }: SimpleEdito
       Superscript,
       Subscript,
       Selection,
+      Markdown,
+      PasteMarkdown,
       ImageUploadNode.configure({
         accept: "image/*",
         maxSize: MAX_FILE_SIZE,
