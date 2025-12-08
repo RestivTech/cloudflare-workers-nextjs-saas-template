@@ -275,6 +275,7 @@ export async function consumeCredits({ userId, amount, description }: { userId: 
   const db = getDB();
 
   // First check if user has enough credits
+  // TODO: use hasEnoughCredits function instead
   const user = await db.query.userTable.findFirst({
     where: eq(userTable.id, userId),
     columns: {

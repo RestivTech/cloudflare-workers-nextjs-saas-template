@@ -11,6 +11,8 @@ import { CMS_ENTRY_STATUS } from "@/app/enums";
 // TODO Implement KV cache for CMS entries
 // TODO Automatically add cms entries to the sitemap and also add the option to hide certain entries from the sitemap
 // TODO Explain how to use the CMS in the README.md file
+// TODO Add version history
+// TODO Add scheduled publishing
 
 // Extend CMS_ENTRY_STATUS with 'all' option for queries
 type CmsEntryStatus = typeof CMS_ENTRY_STATUS[keyof typeof CMS_ENTRY_STATUS];
@@ -173,63 +175,6 @@ export const getCmsCollection = cache(async <T extends keyof typeof cmsConfig.co
   return entries as GetCmsCollectionResult[];
 });
 
-type GetCmsEntryParams<T extends keyof typeof cmsConfig.collections> = {
-  collectionSlug: T;
-  slug: string;
-  /**
-   * Filter by status. Defaults to 'published' only.
-   */
-  status?: CmsEntryStatus;
-  /**
-   * Include relations in the query
-   */
-  includeRelations?: CmsIncludeRelations;
-};
-
-/**
- * Get a single CMS entry by collection and slug (for detail pages)
- *
- * @example
- * // Get a specific blog post by slug
- * const post = await getCmsEntry({
- *   collectionSlug: 'blog',
- *   slug: 'my-first-post',
- *   includeRelations: { createdByUser: true, media: true }
- * });
- */
-export const getCmsEntry = cache(async <T extends keyof typeof cmsConfig.collections>({
-  collectionSlug,
-  slug,
-  status = CMS_ENTRY_STATUS.PUBLISHED,
-  includeRelations,
-}: GetCmsEntryParams<T>): Promise<GetCmsCollectionResult | null> => {
-  const db = getDB();
-
-  // Get the collection config
-  const collection = cmsConfig.collections[collectionSlug];
-  if (!collection) {
-    throw new Error(`Collection "${String(collectionSlug)}" not found in CMS config`);
-  }
-
-  // Build the where clause
-  const whereConditions = [
-    eq(cmsEntryTable.collection, collection.slug),
-    eq(cmsEntryTable.slug, slug),
-  ];
-
-  // Add status filter if not 'all'
-  if (status !== 'all') {
-    whereConditions.push(eq(cmsEntryTable.status, status));
-  }
-
-  // Build the query with optional relations
-  const entry = await db.query.cmsEntryTable.findFirst({
-    where: and(...whereConditions),
-    with: buildCmsRelationsQuery(includeRelations),
-  });
-
-  return entry as GetCmsCollectionResult | null;
-});
 
 type GetCmsEntryByIdParams = {
   id: string;

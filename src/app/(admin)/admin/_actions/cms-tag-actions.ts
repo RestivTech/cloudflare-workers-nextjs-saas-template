@@ -5,7 +5,6 @@ import { createServerAction, ZSAError } from "zsa";
 import { requireAdmin } from "@/utils/auth";
 import {
   getCmsTags,
-  getCmsTagById,
   createCmsTag,
   updateCmsTag,
   deleteCmsTag,
@@ -16,20 +15,6 @@ export const listCmsTagsAction = createServerAction()
     await requireAdmin();
     const tags = await getCmsTags();
     return tags;
-  });
-
-export const getCmsTagAction = createServerAction()
-  .input(z.object({ id: z.string() }))
-  .handler(async ({ input }) => {
-    await requireAdmin();
-
-    const tag = await getCmsTagById(input.id);
-
-    if (!tag) {
-      throw new ZSAError("NOT_FOUND", "Tag not found");
-    }
-
-    return tag;
   });
 
 export const createCmsTagAction = createServerAction()

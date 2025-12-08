@@ -30,7 +30,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MultiSelect, type MultiSelectRef } from "@/components/ui/multi-select";
 import type { MultiSelectOption } from "@/components/ui/multi-select";
-import { TipTapEditor } from "../../_components/tiptap-editor";
+import { SimpleEditor } from "@/components/tiptap-templates/simple/simple-editor";
 import { Loader2, Save, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { generateSlug } from "@/utils/slugify";
@@ -365,7 +365,7 @@ export function CmsEntryForm({ collection, mode, entry }: CmsEntryFormProps) {
                 render={({ field }) => (
                   <FormItem>
                     <FormControl>
-                      <TipTapEditor
+                      <SimpleEditor
                         content={field.value}
                         onChange={(newContent) => field.onChange(newContent)}
                       />
