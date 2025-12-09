@@ -379,17 +379,147 @@ curl -X DELETE https://api.example.com/api/pattern-compliance/repositories/repo-
 
 ---
 
-## Planned APIs (Next Phase)
+## Violations API
 
-### Violations API
-- `GET /api/pattern-compliance/violations` - List violations
-- `GET /api/pattern-compliance/violations/:id` - Get violation details
-- `PUT /api/pattern-compliance/violations/:id` - Update violation status
-- `GET /api/pattern-compliance/violations/byRepository/:repoId` - Get violations for a repository
-- `GET /api/pattern-compliance/violations/byPattern/:patternId` - Get violations for a pattern
+### 1. List Violations
+
+**Endpoint**: `GET /api/pattern-compliance/violations`
+
+**Description**: Retrieve violations with advanced filtering and pagination
+
+**Query Parameters**:
+- `status` (optional): `open|resolved|suppressed|wontfix`
+- `approvalStatus` (optional): `pending|approved|rejected`
+- `severity` (optional): `Critical|High|Medium|Low`
+- `repositoryId` (optional): Filter by repository ID
+- `patternId` (optional): Filter by pattern ID
+- `limit` (optional): Results per page (default: 100)
+- `offset` (optional): Pagination offset (default: 0)
+
+**Special Query Parameters**:
+- `byRepository=:repoId` - Get violations for specific repository
+- `byPattern=:patternId` - Get violations for specific pattern
+- `awaitingApproval=true` - Get violations pending approval
+
+**Request**:
+```bash
+curl "https://api.example.com/api/pattern-compliance/violations?status=open&severity=Critical"
+curl "https://api.example.com/api/pattern-compliance/violations?byRepository=repo-123"
+curl "https://api.example.com/api/pattern-compliance/violations?awaitingApproval=true"
+```
+
+**Response** (200 OK):
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "violation-123",
+      "repository_id": "repo-456",
+      "repository_name": "API Gateway",
+      "pattern_id": "pattern-789",
+      "pattern_name": "Hardcoded Secrets Detection",
+      "file_path": "src/config.ts",
+      "status": "open",
+      "approval_status": "pending",
+      "severity": "Critical",
+      "first_detected_at": "2025-12-08T12:00:00Z",
+      "created_at": "2025-12-08T12:00:00Z"
+    }
+  ],
+  "count": 15
+}
+```
+
+### 2. Get Violation by ID
+
+**Endpoint**: `GET /api/pattern-compliance/violations/:id`
+
+**Description**: Retrieve detailed information about a specific violation
+
+**Request**:
+```bash
+curl https://api.example.com/api/pattern-compliance/violations/violation-123
+```
+
+**Response** (200 OK):
+```json
+{
+  "success": true,
+  "data": {
+    "id": "violation-123",
+    "repository_id": "repo-456",
+    "repository_name": "API Gateway",
+    "repository_url": "https://github.com/example/api-gateway",
+    "pattern_id": "pattern-789",
+    "pattern_name": "Hardcoded Secrets Detection",
+    "pattern_category": "Security",
+    "pattern_severity": "Critical",
+    "file_path": "src/config.ts",
+    "line_number": 42,
+    "column_number": 15,
+    "code_snippet": "const apiKey = 'sk-xxx-yyy-zzz';",
+    "status": "open",
+    "approval_status": "pending",
+    "severity": "Critical",
+    "first_detected_at": "2025-12-08T12:00:00Z",
+    "created_at": "2025-12-08T12:00:00Z",
+    "approval_method": "email",
+    "approver_id": null
+  }
+}
+```
+
+**Error Responses**:
+- 404: Violation not found
+- 500: Server error
+
+### 3. Update Violation Status
+
+**Endpoint**: `PUT /api/pattern-compliance/violations/:id`
+
+**Description**: Update the status of a violation
+
+**Status Values**:
+- `open` - Violation is active
+- `resolved` - Issue has been fixed
+- `suppressed` - Violation is acknowledged but not fixing
+- `wontfix` - Will not be fixed (intentional)
+
+**Request Body**:
+```json
+{
+  "status": "resolved",
+  "statusComment": "Fixed by updating config to use environment variables",
+  "updatedBy": "user-456"
+}
+```
+
+**Response** (200 OK):
+```json
+{
+  "success": true,
+  "data": {
+    "id": "violation-123",
+    "status": "resolved",
+    "status_comment": "Fixed by updating config...",
+    "updated_at": "2025-12-08T14:30:00Z"
+  },
+  "message": "Violation status updated to resolved"
+}
+```
+
+**Error Responses**:
+- 400: Invalid status value
+- 500: Server error
+
+---
+
+## Planned APIs (Next Phase)
 
 ### Approvals API
 - `GET /api/pattern-compliance/approvals` - List pending approvals
+- `GET /api/pattern-compliance/approvals/user/:userId` - Get user's pending approvals
 - `POST /api/pattern-compliance/approvals/:violationId/approve` - Approve a violation
 - `POST /api/pattern-compliance/approvals/:violationId/reject` - Reject a violation
 
