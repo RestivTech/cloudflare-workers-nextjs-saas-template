@@ -515,13 +515,212 @@ curl https://api.example.com/api/pattern-compliance/violations/violation-123
 
 ---
 
-## Planned APIs (Next Phase)
+## Approvals API
 
-### Approvals API
-- `GET /api/pattern-compliance/approvals` - List pending approvals
-- `GET /api/pattern-compliance/approvals/user/:userId` - Get user's pending approvals
-- `POST /api/pattern-compliance/approvals/:violationId/approve` - Approve a violation
-- `POST /api/pattern-compliance/approvals/:violationId/reject` - Reject a violation
+### 1. List Approvals
+
+**Endpoint**: `GET /api/pattern-compliance/approvals`
+
+**Description**: Retrieve all approvals with advanced filtering
+
+**Query Parameters**:
+- `status` (optional): `pending|approved|rejected`
+- `approverId` (optional): Filter by approver ID
+- `violationId` (optional): Filter by violation ID
+- `repositoryId` (optional): Filter by repository ID
+- `userId` (optional): Get approvals for specific user (overrides other filters)
+- `limit` (optional): Results per page (default: 100)
+- `offset` (optional): Pagination offset (default: 0)
+
+**Request**:
+```bash
+curl https://api.example.com/api/pattern-compliance/approvals?status=pending
+curl https://api.example.com/api/pattern-compliance/approvals?userId=user-123&status=pending
+```
+
+**Response** (200 OK):
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "approval-123",
+      "violation_id": "violation-456",
+      "repository_name": "API Gateway",
+      "pattern_name": "Hardcoded Secrets Detection",
+      "file_path": "src/config.ts",
+      "severity": "Critical",
+      "status": "pending",
+      "approver_id": "user-789",
+      "approver_email": "approver@example.com",
+      "assigned_at": "2025-12-08T12:00:00Z",
+      "due_at": "2025-12-15T12:00:00Z",
+      "approved_at": null,
+      "rejected_at": null,
+      "sla_status": "on-track"
+    }
+  ],
+  "count": 5
+}
+```
+
+### 2. Get User's Approvals
+
+**Endpoint**: `GET /api/pattern-compliance/approvals?userId=:userId`
+
+**Description**: Get all approvals assigned to a specific user with SLA status
+
+**Query Parameters**:
+- `userId` (required): User ID to get approvals for
+- `status` (optional): Filter by approval status
+- `limit` (optional): Results per page
+- `offset` (optional): Pagination offset
+
+**Request**:
+```bash
+curl https://api.example.com/api/pattern-compliance/approvals?userId=user-123
+curl https://api.example.com/api/pattern-compliance/approvals?userId=user-123&status=pending
+```
+
+**Response** (200 OK):
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "approval-123",
+      "violation_id": "violation-456",
+      "repository_name": "API Gateway",
+      "pattern_name": "Hardcoded Secrets Detection",
+      "file_path": "src/config.ts",
+      "line_number": 42,
+      "code_snippet": "const apiKey = 'sk-xxx-yyy-zzz';",
+      "severity": "Critical",
+      "status": "pending",
+      "assigned_at": "2025-12-08T12:00:00Z",
+      "due_at": "2025-12-15T12:00:00Z",
+      "sla_status": "on-track",
+      "created_at": "2025-12-08T12:00:00Z"
+    }
+  ],
+  "count": 3,
+  "userId": "user-123"
+}
+```
+
+**Error Responses**:
+- 500: Server error
+
+### 3. Get Approval History for Violation
+
+**Endpoint**: `GET /api/pattern-compliance/approvals/:violationId`
+
+**Description**: Get complete approval history (all decisions) for a violation
+
+**Request**:
+```bash
+curl https://api.example.com/api/pattern-compliance/approvals/violation-456
+```
+
+**Response** (200 OK):
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "approval-123",
+      "status": "approved",
+      "approver_id": "user-789",
+      "approver_email": "approver@example.com",
+      "assigned_at": "2025-12-08T12:00:00Z",
+      "approved_at": "2025-12-08T14:30:00Z",
+      "rejected_at": null,
+      "decision_reason": "Verified and fixed via environment variables",
+      "created_at": "2025-12-08T12:00:00Z"
+    }
+  ],
+  "violationId": "violation-456"
+}
+```
+
+**Error Responses**:
+- 500: Server error
+
+### 4. Approve a Violation
+
+**Endpoint**: `POST /api/pattern-compliance/approvals/:violationId`
+
+**Description**: Approve a violation and create approval record
+
+**Request Body**:
+```json
+{
+  "action": "approve",
+  "approverId": "user-123",
+  "decisionReason": "Verified fix via environment variables"
+}
+```
+
+**Response** (200 OK):
+```json
+{
+  "success": true,
+  "data": {
+    "id": "approval-123",
+    "violation_id": "violation-456",
+    "approver_id": "user-123",
+    "status": "approved",
+    "decision_reason": "Verified fix via environment variables",
+    "approved_at": "2025-12-08T14:30:00Z",
+    "created_at": "2025-12-08T14:30:00Z"
+  },
+  "message": "Violation approved successfully"
+}
+```
+
+**Error Responses**:
+- 400: Missing required fields or invalid action
+- 500: Server error
+
+### 5. Reject a Violation
+
+**Endpoint**: `POST /api/pattern-compliance/approvals/:violationId`
+
+**Description**: Reject a violation approval and create approval record
+
+**Request Body**:
+```json
+{
+  "action": "reject",
+  "approverId": "user-123",
+  "decisionReason": "Does not meet compliance requirements"
+}
+```
+
+**Response** (200 OK):
+```json
+{
+  "success": true,
+  "data": {
+    "id": "approval-124",
+    "violation_id": "violation-456",
+    "approver_id": "user-123",
+    "status": "rejected",
+    "decision_reason": "Does not meet compliance requirements",
+    "rejected_at": "2025-12-08T15:00:00Z",
+    "created_at": "2025-12-08T15:00:00Z"
+  },
+  "message": "Violation rejected successfully"
+}
+```
+
+**Error Responses**:
+- 400: Missing required fields or invalid action
+- 500: Server error
+
+---
+
+## Planned APIs (Future Phase)
 
 ### Metrics API
 - `GET /api/pattern-compliance/metrics/repository/:repoId` - Get compliance metrics

@@ -890,6 +890,329 @@ export class PatternComplianceDB {
       return [];
     }
   }
+
+  // ============================================================================
+  // APPROVAL WORKFLOW OPERATIONS
+  // ============================================================================
+
+  /**
+   * Get approval by ID with full context
+   */
+  async getApprovalById(id: string): Promise<any> {
+    try {
+      return await this.db.execute(
+        `
+        SELECT
+          a.id,
+          a.violation_id,
+          v.repository_id,
+          r.name as repository_name,
+          v.pattern_id,
+          p.name as pattern_name,
+          v.file_path,
+          v.status as violation_status,
+          a.status as approval_status,
+          a.approver_id,
+          u.email as approver_email,
+          a.assigned_at,
+          a.due_at,
+          a.approved_at,
+          a.rejected_at,
+          a.decision_reason,
+          a.created_at
+        FROM approvals a
+        JOIN violations v ON a.violation_id = v.id
+        JOIN repositories r ON v.repository_id = r.id
+        JOIN patterns p ON v.pattern_id = p.id
+        LEFT JOIN users u ON a.approver_id = u.id
+        WHERE a.id = ?
+        `,
+        [id]
+      );
+    } catch (error) {
+      console.error("Failed to get approval:", error);
+      return null;
+    }
+  }
+
+  /**
+   * List all approvals with optional filtering
+   */
+  async listApprovals(filters?: {
+    status?: string;
+    approverId?: string;
+    violationId?: string;
+    repositoryId?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<any[]> {
+    try {
+      let query = `
+        SELECT
+          a.id,
+          a.violation_id,
+          v.repository_id,
+          r.name as repository_name,
+          v.pattern_id,
+          p.name as pattern_name,
+          v.file_path,
+          v.severity,
+          a.status,
+          a.approver_id,
+          u.email as approver_email,
+          a.assigned_at,
+          a.due_at,
+          a.approved_at,
+          a.rejected_at
+        FROM approvals a
+        JOIN violations v ON a.violation_id = v.id
+        JOIN repositories r ON v.repository_id = r.id
+        JOIN patterns p ON v.pattern_id = p.id
+        LEFT JOIN users u ON a.approver_id = u.id
+        WHERE 1=1
+      `;
+
+      const params: any[] = [];
+
+      if (filters?.status) {
+        query += ` AND a.status = ?`;
+        params.push(filters.status);
+      }
+      if (filters?.approverId) {
+        query += ` AND a.approver_id = ?`;
+        params.push(filters.approverId);
+      }
+      if (filters?.violationId) {
+        query += ` AND a.violation_id = ?`;
+        params.push(filters.violationId);
+      }
+      if (filters?.repositoryId) {
+        query += ` AND v.repository_id = ?`;
+        params.push(filters.repositoryId);
+      }
+
+      query += ` ORDER BY a.assigned_at DESC`;
+
+      if (filters?.limit) {
+        query += ` LIMIT ?`;
+        params.push(filters.limit);
+      }
+      if (filters?.offset) {
+        query += ` OFFSET ?`;
+        params.push(filters.offset);
+      }
+
+      return await this.db.execute(query, params);
+    } catch (error) {
+      console.error("Failed to list approvals:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Get all approvals for a specific user
+   */
+  async getApprovalsForUser(
+    userId: string,
+    filters?: {
+      status?: string;
+      limit?: number;
+      offset?: number;
+    }
+  ): Promise<any[]> {
+    try {
+      let query = `
+        SELECT
+          a.id,
+          a.violation_id,
+          v.repository_id,
+          r.name as repository_name,
+          v.pattern_id,
+          p.name as pattern_name,
+          v.file_path,
+          v.line_number,
+          v.code_snippet,
+          v.severity,
+          a.status,
+          a.assigned_at,
+          a.due_at,
+          CASE
+            WHEN a.due_at < CURRENT_TIMESTAMP THEN 'overdue'
+            WHEN a.due_at < DATETIME('now', '+24 hours') THEN 'due-soon'
+            ELSE 'on-track'
+          END as sla_status,
+          a.created_at
+        FROM approvals a
+        JOIN violations v ON a.violation_id = v.id
+        JOIN repositories r ON v.repository_id = r.id
+        JOIN patterns p ON v.pattern_id = p.id
+        WHERE a.approver_id = ?
+      `;
+
+      const params: any[] = [userId];
+
+      if (filters?.status) {
+        query += ` AND a.status = ?`;
+        params.push(filters.status);
+      }
+
+      query += ` ORDER BY a.due_at ASC, a.assigned_at DESC`;
+
+      if (filters?.limit) {
+        query += ` LIMIT ?`;
+        params.push(filters.limit);
+      }
+      if (filters?.offset) {
+        query += ` OFFSET ?`;
+        params.push(filters.offset);
+      }
+
+      return await this.db.execute(query, params);
+    } catch (error) {
+      console.error("Failed to get user approvals:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Approve a violation
+   */
+  async approveViolation(
+    violationId: string,
+    approverId: string,
+    decisionReason?: string
+  ): Promise<Approval | null> {
+    try {
+      const approvalId = crypto.randomUUID();
+      const now = new Date().toISOString();
+
+      // Create approval record
+      await this.db.insert(schema.approvalsTable).values({
+        id: approvalId,
+        violation_id: violationId,
+        approver_id: approverId,
+        status: "approved",
+        decision_reason: decisionReason,
+        approved_at: now,
+      });
+
+      // Update violation approval status
+      await this.db
+        .update(schema.violationsTable)
+        .set({
+          approval_status: "approved",
+          updated_at: now,
+        })
+        .where(eq(schema.violationsTable.id, violationId));
+
+      // Log audit entry
+      await this.logAudit({
+        action: "violation_approved",
+        resourceType: "approval",
+        resourceId: approvalId,
+        userId: approverId,
+        details: {
+          violationId,
+          reason: decisionReason,
+        },
+      });
+
+      const result = await this.db
+        .select()
+        .from(schema.approvalsTable)
+        .where(eq(schema.approvalsTable.id, approvalId));
+
+      return result[0] || null;
+    } catch (error) {
+      console.error("Failed to approve violation:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Reject a violation approval
+   */
+  async rejectViolation(
+    violationId: string,
+    approverId: string,
+    decisionReason?: string
+  ): Promise<Approval | null> {
+    try {
+      const approvalId = crypto.randomUUID();
+      const now = new Date().toISOString();
+
+      // Create approval record
+      await this.db.insert(schema.approvalsTable).values({
+        id: approvalId,
+        violation_id: violationId,
+        approver_id: approverId,
+        status: "rejected",
+        decision_reason: decisionReason,
+        rejected_at: now,
+      });
+
+      // Update violation approval status
+      await this.db
+        .update(schema.violationsTable)
+        .set({
+          approval_status: "rejected",
+          updated_at: now,
+        })
+        .where(eq(schema.violationsTable.id, violationId));
+
+      // Log audit entry
+      await this.logAudit({
+        action: "violation_rejected",
+        resourceType: "approval",
+        resourceId: approvalId,
+        userId: approverId,
+        details: {
+          violationId,
+          reason: decisionReason,
+        },
+      });
+
+      const result = await this.db
+        .select()
+        .from(schema.approvalsTable)
+        .where(eq(schema.approvalsTable.id, approvalId));
+
+      return result[0] || null;
+    } catch (error) {
+      console.error("Failed to reject violation:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get approval history for a violation
+   */
+  async getApprovalHistory(violationId: string): Promise<any[]> {
+    try {
+      return await this.db.execute(
+        `
+        SELECT
+          a.id,
+          a.status,
+          a.approver_id,
+          u.email as approver_email,
+          a.assigned_at,
+          a.approved_at,
+          a.rejected_at,
+          a.decision_reason,
+          a.created_at
+        FROM approvals a
+        LEFT JOIN users u ON a.approver_id = u.id
+        WHERE a.violation_id = ?
+        ORDER BY a.created_at DESC
+        `,
+        [violationId]
+      );
+    } catch (error) {
+      console.error("Failed to get approval history:", error);
+      return [];
+    }
+  }
 }
 
 /**
