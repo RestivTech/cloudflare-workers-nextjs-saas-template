@@ -13,7 +13,7 @@ concurrency:
 jobs:
   lint:
     name: Lint & Type Check
-    runs-on: [self-hosted, restivtech-runner, linux]
+    runs-on: restivtech-runners
     timeout-minutes: 15
 
     steps:
@@ -41,7 +41,7 @@ jobs:
 
   build:
     name: Build & Verify
-    runs-on: [self-hosted, restivtech-runner, linux]
+    runs-on: restivtech-runners
     timeout-minutes: 20
     needs: lint
 
@@ -79,7 +79,7 @@ jobs:
 
   security:
     name: Security Scanning
-    runs-on: [self-hosted, restivtech-runner, linux]
+    runs-on: restivtech-runners
     timeout-minutes: 15
 
     steps:
@@ -107,7 +107,7 @@ jobs:
 
   quality-gate:
     name: Quality Gate
-    runs-on: [self-hosted, restivtech-runner, linux]
+    runs-on: restivtech-runners
     timeout-minutes: 10
     needs: [lint, build, security]
     if: always()

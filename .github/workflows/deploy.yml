@@ -8,7 +8,7 @@ on:
 jobs:
   quality-gate:
     name: Quality Gate
-    runs-on: [self-hosted, restivtech-runner, linux]
+    runs-on: restivtech-runners
     timeout-minutes: 10
     permissions:
       contents: read
@@ -52,7 +52,7 @@ jobs:
 
   publish:
     name: Deploy to Cloudflare Workers
-    runs-on: [self-hosted, restivtech-runner, linux]
+    runs-on: restivtech-runners
     timeout-minutes: 30
     needs: quality-gate
     permissions:
