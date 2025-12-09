@@ -24,7 +24,17 @@
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:report": "playwright show-report",
     "test:perf": "lighthouse http://localhost:3000 --output=json --output-path=./performance-results.json",
-    "test:all": "npm run lint && npm run build && npm run test:e2e"
+    "test:smoke": "playwright test --grep @smoke",
+    "test:security-audit": "npm audit --audit-level=moderate",
+    "security-audit": "npm audit --audit-level=moderate",
+    "test:all": "npm run lint && npm run build && npm run test:e2e",
+    "migrate:up": "tsx scripts/db-migrate.ts up",
+    "migrate:down": "tsx scripts/db-migrate.ts down",
+    "migrate:create": "tsx scripts/db-migrate.ts create",
+    "migrate:status": "tsx scripts/db-migrate.ts status",
+    "deploy:staging": "wrangler deploy --env staging",
+    "deploy:prod": "wrangler deploy --env production",
+    "lighthouse": "lighthouse"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",

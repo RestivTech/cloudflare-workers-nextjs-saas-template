@@ -1,0 +1,83 @@
+name = "pattern-compliance-dashboard"
+main = "dist/index.js"
+compatibility_date = "2024-12-09"
+
+# Environment-agnostic settings
+env = "production"
+routes = [
+  { pattern = "pattern-compliance.deltaops.ca", zone_name = "deltaops.ca" }
+]
+
+# KV Namespace bindings for caching and state
+kv_namespaces = [
+  { binding = "CACHE", id = "cache_store", preview_id = "cache_store_preview" },
+  { binding = "SESSIONS", id = "sessions_store", preview_id = "sessions_store_preview" },
+  { binding = "RATE_LIMITS", id = "rate_limits_store", preview_id = "rate_limits_store_preview" }
+]
+
+# Durable Objects for persistent state (optional, for future use)
+# [[durable_objects.bindings]]
+# name = "COORDINATION"
+# class_name = "CoordinationDurable"
+# script_name = "pattern-compliance-dashboard"
+
+# Environment variables
+[env.production]
+vars = { ENVIRONMENT = "production", LOG_LEVEL = "info" }
+routes = [
+  { pattern = "pattern-compliance.deltaops.ca", zone_name = "deltaops.ca" }
+]
+kv_namespaces = [
+  { binding = "CACHE", id = "pcd_cache_prod", preview_id = "pcd_cache_prod_preview" },
+  { binding = "SESSIONS", id = "pcd_sessions_prod", preview_id = "pcd_sessions_prod_preview" },
+  { binding = "RATE_LIMITS", id = "pcd_rate_limits_prod", preview_id = "pcd_rate_limits_prod_preview" }
+]
+
+[env.staging]
+vars = { ENVIRONMENT = "staging", LOG_LEVEL = "debug" }
+routes = [
+  { pattern = "pattern-compliance-staging.deltaops.ca", zone_name = "deltaops.ca" }
+]
+kv_namespaces = [
+  { binding = "CACHE", id = "pcd_cache_staging", preview_id = "pcd_cache_staging_preview" },
+  { binding = "SESSIONS", id = "pcd_sessions_staging", preview_id = "pcd_sessions_staging_preview" },
+  { binding = "RATE_LIMITS", id = "pcd_rate_limits_staging", preview_id = "pcd_rate_limits_staging_preview" }
+]
+
+[env.development]
+vars = { ENVIRONMENT = "development", LOG_LEVEL = "debug" }
+routes = [
+  { pattern = "localhost:3000", zone_id = "dev" }
+]
+
+# Triggers for scheduled jobs (example: health check monitoring)
+[triggers]
+crons = ["0 */6 * * *"]  # Run every 6 hours
+
+# Build configuration
+[build]
+command = "npm run build"
+cwd = "."
+watch_paths = ["src/**/*.ts", "src/**/*.tsx"]
+
+# Upload rules for deployment
+[[rules]]
+type = "CompiledContentType"
+globs = ["**/*.wasm"]
+fallthrough = true
+
+# Limits and timeouts
+compatibility_flags = ["nodejs_compat"]
+limits = { cpu_milliseconds = 50000 }
+
+# Analytics configuration (Cloudflare Web Analytics)
+[analytics]
+enabled = true
+
+# Observability
+[observability]
+enabled = true
+
+# Workers tail configuration for real-time logs
+[tail]
+enabled = true

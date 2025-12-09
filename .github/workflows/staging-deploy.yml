@@ -1,0 +1,187 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+concurrency:
+  group: staging-deployment
+  cancel-in-progress: false
+
+env:
+  REGISTRY: us-central1-docker.pkg.dev
+  PROJECT_ID: grc-next-478716
+  REPOSITORY: docker-images
+  IMAGE_NAME: pattern-compliance-dashboard-staging
+
+jobs:
+  # Quality gates before staging deployment
+  quality-gate:
+    name: Quality Gate
+    runs-on: restivtech-runners
+    timeout-minutes: 15
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+      image-digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Lint code
+        run: npm run lint
+
+      - name: Build application
+        run: npm run build
+
+      - name: Run tests
+        run: npm run test
+
+      - name: Run security check
+        run: npm run security-audit
+
+      - name: Run E2E tests
+        run: npm run test:e2e
+
+      - name: Get version
+        id: version
+        run: echo "VERSION=$(cat package.json | jq -r .version)" >> $GITHUB_OUTPUT
+
+      - name: Generate image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}},value=${{ steps.version.outputs.VERSION }}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=staging-
+            type=raw,value=staging-latest
+
+  # Build and push Docker image
+  build:
+    name: Build Docker Image
+    runs-on: restivtech-runners
+    needs: quality-gate
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker authentication
+        run: |
+          gcloud auth configure-docker ${{ env.REGISTRY }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ needs.quality-gate.outputs.image-tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            NODE_ENV=staging
+
+  # Deploy to staging environment
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: restivtech-runners
+    needs: [quality-gate, build]
+    timeout-minutes: 20
+    environment:
+      name: staging
+      url: https://pattern-compliance-staging.deltaops.ca
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy to Cloudflare Workers (staging)
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          npm install -g wrangler
+          wrangler deploy --env staging
+
+      - name: Health check
+        run: |
+          echo "Waiting for staging deployment..."
+          sleep 30
+
+          for i in {1..10}; do
+            if curl -f https://pattern-compliance-staging.deltaops.ca/api/health; then
+              echo "✓ Staging health check passed"
+              exit 0
+            fi
+
+            if [ $i -lt 10 ]; then
+              echo "Health check attempt $i failed, retrying..."
+              sleep 10
+            fi
+          done
+
+          echo "✗ Staging health check failed after 10 attempts"
+          exit 1
+
+      - name: Run smoke tests against staging
+        run: npm run test:smoke -- --env staging
+
+      - name: Notify deployment success
+        if: success()
+        run: |
+          echo "✓ Successfully deployed to staging"
+          echo "URL: https://pattern-compliance-staging.deltaops.ca"
+
+      - name: Notify deployment failure
+        if: failure()
+        run: |
+          echo "✗ Staging deployment failed"
+          exit 1
+
+  # Notify staging deployment status
+  notify:
+    name: Notify Status
+    runs-on: restivtech-runners
+    if: always()
+    needs: [quality-gate, build, deploy-staging]
+    steps:
+      - name: Post deployment status
+        run: |
+          STATUS="${{ job.status }}"
+          echo "Deployment status: $STATUS"
+
+          if [ "$STATUS" = "success" ]; then
+            echo "✓ Staging deployment completed successfully"
+          else
+            echo "✗ Staging deployment failed"
+          fi
