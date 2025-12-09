@@ -6,6 +6,269 @@ This document provides comprehensive context and guidelines for AI assistants wo
 
 ---
 
+## ⚠️ CRITICAL: Template Cleanup & Implementation Setup
+
+**READ THIS FIRST** - This is a NextJS SaaS template that has been adapted for the **Pattern Compliance Dashboard**. You MUST follow this cleanup procedure to remove template boilerplate and implement actual Pattern Compliance functionality.
+
+### Phase 1: Understanding What This Is
+
+This repository started as a fork of the public `cloudflare-workers-nextjs-saas-template` and is being transformed into the **Pattern Compliance Dashboard** application. The template provides:
+
+- ✅ **Keep**: Authentication system, team management, billing, database layer, Cloudflare Workers setup
+- ❌ **Remove**: Demo/example pages, sample SaaS features, template marketing content
+- ⚠️ **Replace**: App functionality with Pattern Compliance Dashboard features
+
+### Phase 2: Complete Cleanup Checklist
+
+Use this checklist to systematically remove template boilerplate and replace with Pattern Compliance Dashboard functionality:
+
+#### Step 1: Remove Template Marketing & Demo Pages
+- [ ] Delete `src/app/(marketing)/` directory (landing page - NOT needed)
+- [ ] Delete `src/components/landing/` directory (marketing components)
+- [ ] Delete `public/logos/` and marketing assets
+- [ ] Remove marketing routes from `src/app/layout.tsx` if present
+- [ ] Delete demo/sample data files
+
+#### Step 2: Keep Core Infrastructure (Don't Touch)
+- [ ] ✅ `src/app/(auth)/` - Authentication pages (KEEP - we need auth)
+- [ ] ✅ `src/app/(dashboard)/layout.tsx` - Dashboard layout (KEEP - rename to Pattern Compliance)
+- [ ] ✅ `src/utils/auth.ts` - Authentication utilities (KEEP)
+- [ ] ✅ `src/db/` - Database setup (KEEP our Pattern Compliance schema)
+- [ ] ✅ `wrangler.jsonc` - Cloudflare configuration (KEEP - already updated)
+- [ ] ✅ `src/lib/` - Utility libraries (KEEP - add Pattern Compliance utilities)
+- [ ] ✅ `src/components/ui/` - Shadcn UI components (KEEP - use for Pattern Compliance UI)
+
+#### Step 3: Replace Sample Features with Pattern Compliance
+
+**Billing System** (in `src/app/(dashboard)/dashboard/billing/`)
+- [ ] This is TEMPLATE demo code - DELETE entirely
+- [ ] Replace with: Pattern Compliance Dashboard routes
+- [ ] Implementation: `/dashboard` (main), `/patterns`, `/repositories`, `/violations`, `/approvals`
+
+**Team Management** (in `src/app/teams/` and billing features)
+- [ ] Template code for team management is present
+- [ ] Keep: The multi-tenancy architecture (useful for Pattern Compliance)
+- [ ] Delete: Sample team billing/subscription logic
+- [ ] Keep: Team RBAC structure for Pattern Compliance roles (admin, reviewer, developer, viewer)
+
+**Admin Dashboard** (in `src/app/(admin)/admin/`)
+- [ ] Template admin is generic SaaS admin
+- [ ] Replace with: Pattern Compliance admin dashboard
+- [ ] Implementation: User management, pattern configuration, settings
+
+#### Step 4: Update Configuration Files
+
+**Environment Variables** (.env files)
+- [ ] Replace all `EMAIL_FROM`, `EMAIL_FROM_NAME` with Pattern Compliance values
+- [ ] Remove any Stripe/billing related env vars (NOT needed)
+- [ ] Ensure all Pattern Compliance vars from `.env.pattern-compliance.example` are present
+- [ ] Check: GitHub token, Resend API key, Slack tokens
+
+**Database** (schema and migrations)
+- [ ] ✅ Pattern Compliance schema already in `src/db/pattern-compliance/schema.sql`
+- [ ] ✅ Drizzle ORM config already in `src/db/pattern-compliance/drizzle-schema.ts`
+- [ ] Ensure migrations directory exists: `src/db/pattern-compliance/migrations/`
+- [ ] Update existing template DB migrations if they conflict
+
+**Package.json**
+- [ ] Remove any unused SaaS template dependencies
+- [ ] Keep: Next.js, React, TypeScript, Tailwind, Shadcn UI, Drizzle ORM
+- [ ] Remove: Stripe, billing-related packages
+- [ ] Add (if needed): Git operations, repository scanning, AST parsing libraries
+- [ ] Verify: All dependencies used by Pattern Compliance Dashboard are present
+
+#### Step 5: Update Routes & Navigation
+
+**App Router Structure** (src/app/)
+```
+src/app/
+├── (auth)/              ✅ KEEP - authentication routes
+│   ├── sign-in/
+│   ├── sign-up/
+│   └── ...
+├── (dashboard)/         ⚠️  REPLACE WITH PATTERN COMPLIANCE
+│   ├── dashboard/       → Main dashboard with violation overview
+│   ├── patterns/        → Pattern registry management
+│   ├── repositories/    → Repository configuration
+│   ├── violations/      → Violation listing & remediation
+│   ├── approvals/       → Approval queue management
+│   └── admin/           → Admin settings
+├── api/                 ⚠️  REPLACE WITH PATTERN COMPLIANCE APIS
+│   ├── admin/           → Admin endpoints
+│   ├── patterns/        → Pattern CRUD
+│   ├── repositories/    → Repository CRUD
+│   ├── violations/      → Violation endpoints
+│   └── approvals/       → Approval workflow endpoints
+└── ...
+```
+
+**Navigation Components**
+- [ ] Update `src/components/` navigation to show Pattern Compliance routes
+- [ ] Remove any references to billing, subscriptions, SaaS features
+- [ ] Add Pattern Compliance sections: Patterns, Repositories, Violations, Approvals
+
+#### Step 6: Replace Email Templates
+
+**React Email Templates** (src/react-email/)
+- [ ] Delete template SaaS emails: `reset-password.tsx`, `verify-email.tsx`, `team-invite.tsx`
+- [ ] Create Pattern Compliance emails:
+  - [ ] `approval-request.tsx` - Request approval for remediation
+  - [ ] `approval-approved.tsx` - Approval granted notification
+  - [ ] `approval-rejected.tsx` - Approval rejected notification
+  - [ ] `violation-detected.tsx` - New violation detected notification
+
+#### Step 7: Update Branding & Configuration
+
+**CLAUDE.md** (THIS FILE)
+- [ ] Update project description from "SaaS template" to "Pattern Compliance Dashboard"
+- [ ] Document Pattern Compliance-specific setup
+- [ ] Update any template-specific guidelines
+- [ ] Add Pattern Compliance architecture notes
+
+**README.md**
+- [ ] Replace generic SaaS README with Pattern Compliance README
+- [ ] Include: Features, setup, API documentation, architecture overview
+- [ ] Add: Links to REQUIREMENTS.md, ARCHITECTURE.md, IMPLEMENTATION_PLAN.md
+
+**package.json**
+- [ ] Update `name`: "pattern-compliance-dashboard"
+- [ ] Update `description`: "Pattern Compliance Dashboard - Pattern and standard violation detection"
+- [ ] Update `repository` URL to RestivTech fork
+
+**wrangler.jsonc**
+- [ ] ✅ Already updated with Pattern Compliance D1 binding
+- [ ] ✅ Already has necessary Cloudflare configuration
+- [ ] Verify: All bindings match Pattern Compliance needs
+
+#### Step 8: Remove/Replace Demo Data & Seed Data
+
+**Database Seeds**
+- [ ] Check `src/db/pattern-compliance/schema.sql` for seed data
+- [ ] Remove any demo SaaS data
+- [ ] Replace with: Initial Pattern Compliance data (default team, admin user)
+- [ ] Add: Sample patterns for testing (CF Access, error handling, etc.)
+
+**Fixtures & Test Data**
+- [ ] Delete `src/db/fixtures/` if it contains template data
+- [ ] Create `src/db/pattern-compliance/fixtures/` with Pattern Compliance test data
+
+#### Step 9: Verify Core Components
+
+**UI Components** (src/components/ui/)
+- [ ] ✅ Shadcn UI components are generic - keep all
+- [ ] Add Pattern Compliance-specific components:
+  - [ ] `PatternCard` - Display pattern in registry
+  - [ ] `ViolationRow` - Display violation in list
+  - [ ] `ApprovalStatus` - Show approval workflow state
+  - [ ] `ComplianceMetrics` - Display compliance dashboard
+
+**Hooks** (src/hooks/)
+- [ ] ✅ Keep existing hooks (auth, session, etc.)
+- [ ] Remove: SaaS-specific hooks (billing, subscription)
+- [ ] Add: Pattern Compliance hooks (useViolations, useApprovals, etc.)
+
+#### Step 10: Final Verification
+
+Before deployment, verify:
+- [ ] No references to billing, subscriptions, Stripe
+- [ ] No marketing or demo content visible
+- [ ] All environment variables configured correctly
+- [ ] Database schema matches Pattern Compliance design
+- [ ] API endpoints match ARCHITECTURE.md specification
+- [ ] Authentication works correctly
+- [ ] Cloudflare Workers deployment is configured
+- [ ] All TODOs and FIXMEs are addressed (see section below)
+
+### Phase 3: Finding & Replacing TODOs Methodically
+
+**Find all TODOs in the codebase:**
+
+```bash
+# Find all TODO comments
+grep -r "TODO\|FIXME\|XXX\|HACK" src/ --include="*.ts" --include="*.tsx" --include="*.js"
+
+# Count by type
+grep -r "TODO" src/ --include="*.ts" --include="*.tsx" | wc -l
+grep -r "FIXME" src/ --include="*.ts" --include="*.tsx" | wc -l
+
+# Find in specific directories
+grep -r "TODO" src/app/ --include="*.tsx"
+grep -r "TODO" src/lib/ --include="*.ts"
+```
+
+**Pattern of TODOs to Find:**
+- [ ] `TODO: Remove SaaS billing` - Remove all billing code
+- [ ] `TODO: Replace with Pattern Compliance` - Replace with actual feature
+- [ ] `TODO: Add authentication check` - Verify auth is properly implemented
+- [ ] `TODO: Update to use Pattern Compliance DB` - Ensure all queries use correct tables
+- [ ] `FIXME: Template code` - Replace with production code
+
+**Replacement Strategy:**
+
+| TODO Pattern | Action | Replacement |
+|--------------|--------|-------------|
+| `TODO: Remove SaaS` | DELETE entire section | Remove code block |
+| `TODO: Replace with` | REPLACE with actual code | Implement Pattern Compliance feature |
+| `TODO: Add auth` | VERIFY implementation | Confirm auth is correct, remove TODO |
+| `TODO: Remove demo` | DELETE demo/test code | Remove sample data |
+| `FIXME: Template` | REPLACE implementation | Implement production code |
+
+**Workflow for Each TODO:**
+
+1. **Find**: `grep -r "TODO" src/`
+2. **Understand**: Read the TODO comment and surrounding code
+3. **Decide**:
+   - If "Remove SaaS" → Delete the entire section
+   - If "Replace with" → Implement Pattern Compliance feature
+   - If "Verify" → Check implementation, remove TODO if correct
+4. **Implement**: Write or replace the code
+5. **Verify**: Test the change
+6. **Remove**: Delete the TODO comment
+
+### Phase 4: When Ready for Production
+
+Once all cleanup is complete:
+
+- [ ] Run `npm run build` - Verify build succeeds
+- [ ] Run `npm run lint` - Fix any linting issues
+- [ ] Run tests (if configured) - All tests pass
+- [ ] Review git history - All commits are Pattern Compliance related
+- [ ] Update CHANGELOG.md - Document all changes from template
+- [ ] Deploy to staging - Verify all features work
+- [ ] Get code review - Pattern Compliance experts review
+- [ ] Deploy to production - Launch the dashboard
+
+### Quick Reference: Files to Delete vs Keep
+
+**DELETE THESE** (Template boilerplate):
+```
+src/app/(marketing)/          # All marketing pages
+src/app/teams/[teamSlug]/billing/  # Billing pages
+src/components/landing/       # Marketing components
+public/logos/                 # Template assets
+src/lib/stripe.ts            # Stripe integration
+```
+
+**KEEP THESE** (Core infrastructure):
+```
+src/app/(auth)/              # Authentication
+src/app/(dashboard)/         # Dashboard layout
+src/db/                       # Database setup
+src/utils/auth.ts            # Auth utilities
+src/components/ui/           # Shadcn UI
+wrangler.jsonc              # Cloudflare config
+```
+
+**REPLACE THESE** (Template → Pattern Compliance):
+```
+src/app/(dashboard)/dashboard/    → Violation overview
+src/app/(dashboard)/billing/      → Admin settings
+src/app/teams/                    → Keep structure, update for Pattern Compliance
+src/app/api/                      → Pattern Compliance APIs
+```
+
+---
+
 ## 🔒 Fork Configuration (RestivTech Private Fork)
 
 **Important**: This is a RestivTech private fork of the public Cloudflare Workers Next.js SaaS template.
