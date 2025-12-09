@@ -1,0 +1,205 @@
+name: Performance Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Run performance tests weekly on Monday at 3 AM UTC
+    - cron: '0 3 * * 1'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lighthouse:
+    name: Lighthouse Performance Audit
+    runs-on: restivtech-runners
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Build application
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      - name: Start dev server
+        run: npm run dev &
+        env:
+          NODE_ENV: production
+          CI: true
+
+      - name: Wait for server
+        run: |
+          for i in {1..30}; do
+            if curl -f http://localhost:3000 > /dev/null 2>&1; then
+              echo "Server is ready"
+              exit 0
+            fi
+            echo "Waiting for server... ($i/30)"
+            sleep 2
+          done
+          exit 1
+
+      - name: Run Lighthouse audit
+        run: |
+          mkdir -p ./performance-results
+          npx lighthouse http://localhost:3000 \
+            --chrome-flags="--headless --no-sandbox" \
+            --output=html,json \
+            --output-path=./performance-results/report
+
+      - name: Archive performance results
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-report
+          path: performance-results/
+          retention-days: 30
+
+      - name: Parse and comment performance metrics
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            // Find the latest JSON report
+            const reportsDir = './performance-results';
+            const files = fs.readdirSync(reportsDir);
+            const jsonFile = files.find(f => f.endsWith('.json'));
+
+            if (!jsonFile) {
+              console.log('No Lighthouse report found');
+              return;
+            }
+
+            const report = JSON.parse(fs.readFileSync(path.join(reportsDir, jsonFile), 'utf-8'));
+            const scores = report.categories;
+
+            const comment = `## 📊 Lighthouse Performance Report
+
+            | Metric | Score | Status |
+            |--------|-------|--------|
+            | Performance | ${scores.performance.score * 100}/100 | ${scores.performance.score >= 0.9 ? '✅' : scores.performance.score >= 0.7 ? '⚠️' : '❌'} |
+            | Accessibility | ${scores.accessibility.score * 100}/100 | ${scores.accessibility.score >= 0.9 ? '✅' : scores.accessibility.score >= 0.7 ? '⚠️' : '❌'} |
+            | Best Practices | ${scores['best-practices'].score * 100}/100 | ${scores['best-practices'].score >= 0.9 ? '✅' : scores['best-practices'].score >= 0.7 ? '⚠️' : '❌'} |
+            | SEO | ${scores.seo.score * 100}/100 | ${scores.seo.score >= 0.9 ? '✅' : scores.seo.score >= 0.7 ? '⚠️' : '❌'} |
+
+            ### Audit Details
+            - **First Contentful Paint**: ${report.audits['first-contentful-paint']?.displayValue || 'N/A'}
+            - **Largest Contentful Paint**: ${report.audits['largest-contentful-paint']?.displayValue || 'N/A'}
+            - **Time to Interactive**: ${report.audits['interactive']?.displayValue || 'N/A'}
+            - **Total Blocking Time**: ${report.audits['total-blocking-time']?.displayValue || 'N/A'}
+            - **Cumulative Layout Shift**: ${report.audits['cumulative-layout-shift']?.displayValue || 'N/A'}
+
+            [View full report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+  load-test:
+    name: Load Testing with k6
+    runs-on: restivtech-runners
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Build application
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      - name: Start dev server
+        run: npm run dev &
+        env:
+          NODE_ENV: production
+          CI: true
+
+      - name: Wait for server
+        run: |
+          for i in {1..30}; do
+            if curl -f http://localhost:3000 > /dev/null 2>&1; then
+              echo "Server is ready"
+              exit 0
+            fi
+            echo "Waiting for server... ($i/30)"
+            sleep 2
+          done
+          exit 1
+
+      - name: Create k6 load test
+        run: |
+          mkdir -p ./load-tests
+          cat > ./load-tests/dashboard-load-test.js << 'EOF'
+          import http from 'k6/http';
+          import { check, sleep } from 'k6';
+
+          export let options = {
+            stages: [
+              { duration: '30s', target: 10 },  // Ramp up
+              { duration: '1m30s', target: 20 }, // Stay at 20
+              { duration: '20s', target: 0 },    // Ramp down
+            ],
+            thresholds: {
+              http_req_duration: ['p(95)<500', 'p(99)<1000'],
+              http_req_failed: ['rate<0.1'],
+            },
+          };
+
+          export default function () {
+            const res = http.get('http://localhost:3000');
+
+            check(res, {
+              'status is 200': (r) => r.status === 200,
+              'response time < 500ms': (r) => r.timings.duration < 500,
+              'body size > 0': (r) => r.body.length > 0,
+            });
+
+            sleep(1);
+          }
+          EOF
+
+      - name: Run k6 load test
+        run: |
+          npx k6 run ./load-tests/dashboard-load-test.js \
+            --out json=./load-tests/results.json || true
+
+      - name: Archive load test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-load-test-results
+          path: load-tests/
+          retention-days: 30
