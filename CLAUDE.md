@@ -4,6 +4,43 @@ This document provides comprehensive context and guidelines for AI assistants wo
 
 **For additional project information, features, and setup instructions, refer to the README.md file in the project root.**
 
+---
+
+## 🔒 Fork Configuration (RestivTech Private Fork)
+
+**Important**: This is a RestivTech private fork of the public Cloudflare Workers Next.js SaaS template.
+
+### Git Remote Configuration
+
+```bash
+# Verify remote configuration:
+git remote -v
+
+# Expected output:
+# origin    https://github.com/RestivTech/cloudflare-workers-nextjs-saas-template.git (fetch/push)
+# upstream  https://github.com/LubomirGeorgiev/cloudflare-workers-nextjs-saas-template.git (fetch only)
+```
+
+### Guidelines
+
+- **Push your changes to `origin`** (RestivTech fork): `git push origin <branch>`
+- **Pull updates from `upstream`** (public template): `git fetch upstream main` or `git pull upstream main`
+- **Never push to `upstream`**: The upstream push URL is disabled to prevent accidental commits to the public repo
+- **Keep updated**: Periodically pull upstream changes to stay current with template improvements
+- **Document divergences**: If you make changes incompatible with upstream, document them in this CLAUDE.md
+
+### Use Case
+
+This RestivTech fork hosts a **Pattern Compliance Dashboard** that:
+- Scans source code repositories for pattern violations
+- Identifies misalignment with organizational standards (e.g., CF Access HTTP Headers)
+- Supports configurable approvals via:
+  - Email approvals using Resend
+  - Slack approvals via human-input MCP Server
+- Runs on Cloudflare Workers with D1 database
+
+---
+
 ## Project Overview
 
 This is a comprehensive, production-ready Next.js SaaS template designed to run on Cloudflare Workers with OpenNext. It includes authentication, team management, billing, and other common SaaS features needed to launch a modern web application.
