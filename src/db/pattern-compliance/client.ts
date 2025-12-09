@@ -577,6 +577,319 @@ export class PatternComplianceDB {
       throw error;
     }
   }
+
+  // ============================================================================
+  // VIOLATION QUERY OPERATIONS
+  // ============================================================================
+
+  /**
+   * Get violation by ID with full context (pattern and repository details)
+   */
+  async getViolationById(id: string): Promise<any> {
+    try {
+      return await this.db.execute(
+        `
+        SELECT
+          v.id,
+          v.repository_id,
+          r.name as repository_name,
+          r.url as repository_url,
+          v.pattern_id,
+          p.name as pattern_name,
+          p.category,
+          p.severity as pattern_severity,
+          v.file_path,
+          v.line_number,
+          v.column_number,
+          v.code_snippet,
+          v.status,
+          v.approval_status,
+          v.severity,
+          v.first_detected_at,
+          v.created_at,
+          v.approval_method,
+          v.approver_id
+        FROM violations v
+        JOIN repositories r ON v.repository_id = r.id
+        JOIN patterns p ON v.pattern_id = p.id
+        WHERE v.id = ?
+        `,
+        [id]
+      );
+    } catch (error) {
+      console.error("Failed to get violation:", error);
+      return null;
+    }
+  }
+
+  /**
+   * List violations with optional filters and pagination
+   */
+  async listViolations(filters?: {
+    status?: string;
+    approvalStatus?: string;
+    severity?: string;
+    repositoryId?: string;
+    patternId?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<any[]> {
+    try {
+      let query = `
+        SELECT
+          v.id,
+          v.repository_id,
+          r.name as repository_name,
+          v.pattern_id,
+          p.name as pattern_name,
+          p.severity as pattern_severity,
+          v.file_path,
+          v.status,
+          v.approval_status,
+          v.severity,
+          v.first_detected_at,
+          v.created_at
+        FROM violations v
+        JOIN repositories r ON v.repository_id = r.id
+        JOIN patterns p ON v.pattern_id = p.id
+        WHERE 1=1
+      `;
+
+      const params: any[] = [];
+
+      if (filters?.status) {
+        query += ` AND v.status = ?`;
+        params.push(filters.status);
+      }
+      if (filters?.approvalStatus) {
+        query += ` AND v.approval_status = ?`;
+        params.push(filters.approvalStatus);
+      }
+      if (filters?.severity) {
+        query += ` AND v.severity = ?`;
+        params.push(filters.severity);
+      }
+      if (filters?.repositoryId) {
+        query += ` AND v.repository_id = ?`;
+        params.push(filters.repositoryId);
+      }
+      if (filters?.patternId) {
+        query += ` AND v.pattern_id = ?`;
+        params.push(filters.patternId);
+      }
+
+      query += ` ORDER BY v.first_detected_at DESC`;
+
+      if (filters?.limit) {
+        query += ` LIMIT ?`;
+        params.push(filters.limit);
+      }
+      if (filters?.offset) {
+        query += ` OFFSET ?`;
+        params.push(filters.offset);
+      }
+
+      return await this.db.execute(query, params);
+    } catch (error) {
+      console.error("Failed to list violations:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Get violations for a specific repository
+   */
+  async getViolationsByRepository(
+    repositoryId: string,
+    filters?: {
+      status?: string;
+      severity?: string;
+      limit?: number;
+    }
+  ): Promise<any[]> {
+    try {
+      let query = `
+        SELECT
+          v.id,
+          v.pattern_id,
+          p.name as pattern_name,
+          p.category,
+          v.file_path,
+          v.line_number,
+          v.status,
+          v.severity,
+          v.first_detected_at,
+          COUNT(*) OVER() as total_count
+        FROM violations v
+        JOIN patterns p ON v.pattern_id = p.id
+        WHERE v.repository_id = ?
+      `;
+
+      const params: any[] = [repositoryId];
+
+      if (filters?.status) {
+        query += ` AND v.status = ?`;
+        params.push(filters.status);
+      }
+      if (filters?.severity) {
+        query += ` AND v.severity = ?`;
+        params.push(filters.severity);
+      }
+
+      query += ` ORDER BY v.first_detected_at DESC`;
+
+      if (filters?.limit) {
+        query += ` LIMIT ?`;
+        params.push(filters.limit);
+      }
+
+      return await this.db.execute(query, params);
+    } catch (error) {
+      console.error("Failed to get violations by repository:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Get violations for a specific pattern
+   */
+  async getViolationsByPattern(
+    patternId: string,
+    filters?: {
+      status?: string;
+      repositoryId?: string;
+      limit?: number;
+    }
+  ): Promise<any[]> {
+    try {
+      let query = `
+        SELECT
+          v.id,
+          v.repository_id,
+          r.name as repository_name,
+          v.file_path,
+          v.line_number,
+          v.status,
+          v.severity,
+          v.first_detected_at,
+          COUNT(*) OVER() as total_count
+        FROM violations v
+        JOIN repositories r ON v.repository_id = r.id
+        WHERE v.pattern_id = ?
+      `;
+
+      const params: any[] = [patternId];
+
+      if (filters?.status) {
+        query += ` AND v.status = ?`;
+        params.push(filters.status);
+      }
+      if (filters?.repositoryId) {
+        query += ` AND v.repository_id = ?`;
+        params.push(filters.repositoryId);
+      }
+
+      query += ` ORDER BY v.first_detected_at DESC`;
+
+      if (filters?.limit) {
+        query += ` LIMIT ?`;
+        params.push(filters.limit);
+      }
+
+      return await this.db.execute(query, params);
+    } catch (error) {
+      console.error("Failed to get violations by pattern:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Update violation status (open, resolved, suppressed, wontfix)
+   */
+  async updateViolationStatus(
+    id: string,
+    data: {
+      status: string;
+      statusComment?: string;
+      updatedBy?: string;
+    }
+  ): Promise<Violation | null> {
+    try {
+      const result = await this.db
+        .update(schema.violationsTable)
+        .set({
+          status: data.status as any,
+          status_comment: data.statusComment,
+          updated_at: new Date().toISOString(),
+        })
+        .where(eq(schema.violationsTable.id, id))
+        .returning();
+
+      // Log audit entry
+      await this.logAudit({
+        action: "violation_status_updated",
+        resourceType: "violation",
+        resourceId: id,
+        userId: data.updatedBy,
+        details: { newStatus: data.status, comment: data.statusComment },
+      });
+
+      return result[0] || null;
+    } catch (error) {
+      console.error("Failed to update violation status:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get violations awaiting approval
+   */
+  async getViolationsAwaitingApproval(filters?: {
+    severity?: string;
+    repositoryId?: string;
+    limit?: number;
+  }): Promise<any[]> {
+    try {
+      let query = `
+        SELECT
+          v.id,
+          v.repository_id,
+          r.name as repository_name,
+          v.pattern_id,
+          p.name as pattern_name,
+          v.file_path,
+          v.severity,
+          v.first_detected_at
+        FROM violations v
+        JOIN repositories r ON v.repository_id = r.id
+        JOIN patterns p ON v.pattern_id = p.id
+        WHERE v.approval_status = 'pending'
+      `;
+
+      const params: any[] = [];
+
+      if (filters?.severity) {
+        query += ` AND v.severity = ?`;
+        params.push(filters.severity);
+      }
+      if (filters?.repositoryId) {
+        query += ` AND v.repository_id = ?`;
+        params.push(filters.repositoryId);
+      }
+
+      query += ` ORDER BY v.first_detected_at DESC`;
+
+      if (filters?.limit) {
+        query += ` LIMIT ?`;
+        params.push(filters.limit);
+      }
+
+      return await this.db.execute(query, params);
+    } catch (error) {
+      console.error("Failed to get violations awaiting approval:", error);
+      return [];
+    }
+  }
 }
 
 /**
