@@ -4,8 +4,23 @@
  */
 
 import { drizzle } from "drizzle-orm/d1";
+import { eq, and, or } from "drizzle-orm";
 import type { D1Database } from "@cloudflare/workers-types";
 import * as schema from "./drizzle-schema";
+import type {
+  Pattern,
+  PatternInsert,
+  Repository,
+  RepositoryInsert,
+  Violation,
+  ViolationInsert,
+  Approval,
+  ApprovalInsert,
+  User,
+  UserInsert,
+  Team,
+  TeamInsert,
+} from "./drizzle-schema";
 
 /**
  * Database client for Pattern Compliance Dashboard
@@ -219,6 +234,347 @@ export class PatternComplianceDB {
     } catch (error) {
       console.error("Failed to get violations:", error);
       return [];
+    }
+  }
+
+  // ============================================================================
+  // PATTERN CRUD OPERATIONS
+  // ============================================================================
+
+  /**
+   * Create a new pattern
+   */
+  async createPattern(data: PatternInsert): Promise<Pattern | null> {
+    try {
+      const id = data.id || crypto.randomUUID();
+      const result = await this.db
+        .insert(schema.patternsTable)
+        .values({
+          ...data,
+          id,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .returning();
+
+      return result[0] || null;
+    } catch (error) {
+      console.error("Failed to create pattern:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get pattern by ID
+   */
+  async getPatternById(id: string): Promise<Pattern | undefined> {
+    try {
+      const result = await this.db
+        .select()
+        .from(schema.patternsTable)
+        .where(eq(schema.patternsTable.id, id));
+
+      return result[0];
+    } catch (error) {
+      console.error("Failed to get pattern:", error);
+      return undefined;
+    }
+  }
+
+  /**
+   * Get pattern by name
+   */
+  async getPatternByName(name: string): Promise<Pattern | undefined> {
+    try {
+      const result = await this.db
+        .select()
+        .from(schema.patternsTable)
+        .where(eq(schema.patternsTable.name, name));
+
+      return result[0];
+    } catch (error) {
+      console.error("Failed to get pattern by name:", error);
+      return undefined;
+    }
+  }
+
+  /**
+   * List all patterns with optional filters
+   */
+  async listPatterns(filters?: {
+    category?: string;
+    status?: string;
+    severity?: string;
+  }): Promise<Pattern[]> {
+    try {
+      let query = this.db.select().from(schema.patternsTable);
+
+      if (filters?.category) {
+        query = query.where(eq(schema.patternsTable.category, filters.category));
+      }
+      if (filters?.status) {
+        query = query.where(eq(schema.patternsTable.status, filters.status));
+      }
+      if (filters?.severity) {
+        query = query.where(eq(schema.patternsTable.severity, filters.severity));
+      }
+
+      return await query;
+    } catch (error) {
+      console.error("Failed to list patterns:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Update a pattern
+   */
+  async updatePattern(id: string, data: Partial<PatternInsert>): Promise<Pattern | null> {
+    try {
+      const result = await this.db
+        .update(schema.patternsTable)
+        .set({
+          ...data,
+          updated_at: new Date().toISOString(),
+        })
+        .where(eq(schema.patternsTable.id, id))
+        .returning();
+
+      return result[0] || null;
+    } catch (error) {
+      console.error("Failed to update pattern:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete a pattern
+   */
+  async deletePattern(id: string): Promise<boolean> {
+    try {
+      const result = await this.db
+        .delete(schema.patternsTable)
+        .where(eq(schema.patternsTable.id, id));
+
+      return true;
+    } catch (error) {
+      console.error("Failed to delete pattern:", error);
+      throw error;
+    }
+  }
+
+  // ============================================================================
+  // REPOSITORY CRUD OPERATIONS
+  // ============================================================================
+
+  /**
+   * Create a new repository
+   */
+  async createRepository(data: RepositoryInsert): Promise<Repository | null> {
+    try {
+      const id = data.id || crypto.randomUUID();
+      const result = await this.db
+        .insert(schema.repositoriesTable)
+        .values({
+          ...data,
+          id,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .returning();
+
+      return result[0] || null;
+    } catch (error) {
+      console.error("Failed to create repository:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get repository by ID
+   */
+  async getRepositoryById(id: string): Promise<Repository | undefined> {
+    try {
+      const result = await this.db
+        .select()
+        .from(schema.repositoriesTable)
+        .where(eq(schema.repositoriesTable.id, id));
+
+      return result[0];
+    } catch (error) {
+      console.error("Failed to get repository:", error);
+      return undefined;
+    }
+  }
+
+  /**
+   * Get repository by URL
+   */
+  async getRepositoryByUrl(url: string): Promise<Repository | undefined> {
+    try {
+      const result = await this.db
+        .select()
+        .from(schema.repositoriesTable)
+        .where(eq(schema.repositoriesTable.url, url));
+
+      return result[0];
+    } catch (error) {
+      console.error("Failed to get repository by URL:", error);
+      return undefined;
+    }
+  }
+
+  /**
+   * List all repositories with optional filters
+   */
+  async listRepositories(filters?: {
+    ownerTeam?: string;
+    scanFrequency?: string;
+  }): Promise<Repository[]> {
+    try {
+      let query = this.db.select().from(schema.repositoriesTable);
+
+      if (filters?.ownerTeam) {
+        query = query.where(eq(schema.repositoriesTable.ownerTeam, filters.ownerTeam));
+      }
+      if (filters?.scanFrequency) {
+        query = query.where(eq(schema.repositoriesTable.scanFrequency, filters.scanFrequency));
+      }
+
+      return await query;
+    } catch (error) {
+      console.error("Failed to list repositories:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Update a repository
+   */
+  async updateRepository(id: string, data: Partial<RepositoryInsert>): Promise<Repository | null> {
+    try {
+      const result = await this.db
+        .update(schema.repositoriesTable)
+        .set({
+          ...data,
+          updated_at: new Date().toISOString(),
+        })
+        .where(eq(schema.repositoriesTable.id, id))
+        .returning();
+
+      return result[0] || null;
+    } catch (error) {
+      console.error("Failed to update repository:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete a repository
+   */
+  async deleteRepository(id: string): Promise<boolean> {
+    try {
+      await this.db
+        .delete(schema.repositoriesTable)
+        .where(eq(schema.repositoriesTable.id, id));
+
+      return true;
+    } catch (error) {
+      console.error("Failed to delete repository:", error);
+      throw error;
+    }
+  }
+
+  // ============================================================================
+  // USER CRUD OPERATIONS
+  // ============================================================================
+
+  /**
+   * Create a new user
+   */
+  async createUser(data: UserInsert): Promise<User | null> {
+    try {
+      const id = data.id || crypto.randomUUID();
+      const result = await this.db
+        .insert(schema.usersTable)
+        .values({
+          ...data,
+          id,
+          created_at: new Date().toISOString(),
+        })
+        .returning();
+
+      return result[0] || null;
+    } catch (error) {
+      console.error("Failed to create user:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get user by ID
+   */
+  async getUserById(id: string): Promise<User | undefined> {
+    try {
+      const result = await this.db
+        .select()
+        .from(schema.usersTable)
+        .where(eq(schema.usersTable.id, id));
+
+      return result[0];
+    } catch (error) {
+      console.error("Failed to get user:", error);
+      return undefined;
+    }
+  }
+
+  /**
+   * Get user by email
+   */
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    try {
+      const result = await this.db
+        .select()
+        .from(schema.usersTable)
+        .where(eq(schema.usersTable.email, email));
+
+      return result[0];
+    } catch (error) {
+      console.error("Failed to get user by email:", error);
+      return undefined;
+    }
+  }
+
+  /**
+   * List users by team
+   */
+  async listUsersByTeam(teamId: string): Promise<User[]> {
+    try {
+      return await this.db
+        .select()
+        .from(schema.usersTable)
+        .where(eq(schema.usersTable.teamId, teamId));
+    } catch (error) {
+      console.error("Failed to list users by team:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Update a user
+   */
+  async updateUser(id: string, data: Partial<UserInsert>): Promise<User | null> {
+    try {
+      const result = await this.db
+        .update(schema.usersTable)
+        .set(data)
+        .where(eq(schema.usersTable.id, id))
+        .returning();
+
+      return result[0] || null;
+    } catch (error) {
+      console.error("Failed to update user:", error);
+      throw error;
     }
   }
 }
