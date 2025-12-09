@@ -87,6 +87,12 @@
             "database_name": "cloudflare-workers-nextjs-saas",
             "database_id": "db968793-55f4-481e-b281-7e1907a775b1",
             "migrations_dir": "src/db/migrations"
+        },
+        {
+            "binding": "PATTERN_COMPLIANCE_DB",
+            "database_name": "pattern-compliance-dashboard",
+            "database_id": "REPLACE_WITH_PRODUCTION_DB_ID",
+            "migrations_dir": "src/db/pattern-compliance/migrations"
         }
     ],
     "kv_namespaces": [
