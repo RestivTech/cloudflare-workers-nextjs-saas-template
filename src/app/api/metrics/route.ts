@@ -130,7 +130,4 @@ export async function GET(request: NextRequest): Promise<NextResponse<MetricsRes
   }
 }
 
-/**
- * Expose metrics tracking function for use in middleware and handlers
- */
-export { trackMetrics }
+// trackMetrics is already exported as a named function above
