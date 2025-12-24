@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import path from "path";
 
 import withBundleAnalyzer from '@next/bundle-analyzer';
 
@@ -9,6 +10,23 @@ const nextConfig: NextConfig = {
   output: 'standalone',  // Enable standalone output for Docker
   experimental: {
     typedRoutes: true,
+  },
+  webpack: (config, { isServer }) => {
+    // Redirect Cloudflare-specific imports to our compatibility layer
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@opennextjs/cloudflare': path.resolve(__dirname, 'src/lib/cloudflare-compat.ts'),
+    };
+
+    // Mark wrangler as external to prevent bundling attempts
+    if (isServer) {
+      config.externals = config.externals || [];
+      if (Array.isArray(config.externals)) {
+        config.externals.push('wrangler');
+      }
+    }
+
+    return config;
   },
   eslint: {
     ignoreDuringBuilds: process.env.SKIP_LINTER === 'true'
